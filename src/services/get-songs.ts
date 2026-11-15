@@ -4,7 +4,7 @@ import {SongMetadata, QueuedPlaylist, MediaSource} from './player.js';
 import {TYPES} from '../types.js';
 import ffmpeg from 'fluent-ffmpeg';
 import YoutubeAPI from './youtube-api.js';
-import SpotifyAPI, {SpotifyTrack} from './spotify-api.js';
+import SpotifyAPI, {SpotifyTrack, normalizeSpotifyUrl} from './spotify-api.js';
 import {URL} from 'node:url';
 import {getSoundCloudMetadata, YtDlpMediaUnavailableError} from '../utils/yt-dlp.js';
 import pLimit from 'p-limit';
@@ -125,6 +125,7 @@ export default class {
       return [[], 0, 0];
     }
 
+    url = normalizeSpotifyUrl(url);
     const parsed = spotifyURI.parse(url);
 
     switch (parsed.type) {
