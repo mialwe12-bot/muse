@@ -10,7 +10,7 @@ import {STATUS} from '../services/player.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('loop-queue')
-    .setDescription('toggle looping the entire queue');
+    .setDescription('Wiederholung der ganzen Warteschlange an/aus');
 
   public requiresVC = true;
 
@@ -24,11 +24,11 @@ export default class implements Command {
     const player = this.playerManager.get(interaction.guild!.id);
 
     if (player.status === STATUS.IDLE) {
-      throw new Error('no songs to loop!');
+      throw new Error('keine Songs zum Wiederholen!');
     }
 
     if (!player.loopCurrentQueue && player.queueSize() < 1) {
-      throw new Error('not enough songs to loop a queue!');
+      throw new Error('zu wenige Songs, um die Warteschlange zu wiederholen!');
     }
 
     if (player.loopCurrentSong) {
@@ -38,6 +38,6 @@ export default class implements Command {
     player.loopCurrentQueue = !player.loopCurrentQueue;
     player.refreshPlayingMessage();
 
-    await interaction.reply((player.loopCurrentQueue ? 'looped queue :)' : 'stopped looping queue :('));
+    await interaction.reply((player.loopCurrentQueue ? '🔁 Warteschlange wird wiederholt' : 'Warteschlange wird nicht mehr wiederholt'));
   }
 }

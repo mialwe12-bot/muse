@@ -222,12 +222,12 @@ export default class {
 
     const {voiceConnection} = this;
     if (voiceConnection === null) {
-      throw new Error('Not connected to a voice channel.');
+      throw new Error('Nicht mit einem Sprachkanal verbunden.');
     }
 
     await this.waitForVoiceConnectionReady(voiceConnection);
     if (this.voiceConnection !== voiceConnection) {
-      throw new Error('Voice connection changed while waiting for it to become ready.');
+      throw new Error('Die Sprachverbindung hat sich beim Verbinden geändert.');
     }
 
     return voiceConnection;
@@ -341,7 +341,7 @@ export default class {
 
   pause(): void {
     if (this.status !== STATUS.PLAYING) {
-      throw new Error('Not currently playing.');
+      throw new Error('Gerade läuft nichts.');
     }
 
     this.playbackAttempts.invalidate();
@@ -636,7 +636,7 @@ export default class {
 
   move(from: number, to: number): QueuedSong {
     if (from > this.queueSize() || to > this.queueSize()) {
-      throw new Error('Move index is outside the range of the queue.');
+      throw new Error('Diese Position gibt es in der Warteschlange nicht.');
     }
 
     this.queue.splice(this.queuePosition + to, 0, this.queue.splice(this.queuePosition + from, 1)[0]);
@@ -667,7 +667,7 @@ export default class {
   private async connectWithRetries(channel: VoiceChannel, generation: number): Promise<void> {
     const settings = await getGuildSettings(this.guildId);
     if (generation !== this.voiceConnectionGeneration) {
-      throw new Error('Voice connection attempt was cancelled.');
+      throw new Error('Der Verbindungsversuch wurde abgebrochen.');
     }
 
     this.defaultVolume = settings.defaultVolume ?? DEFAULT_VOLUME;
@@ -715,7 +715,7 @@ export default class {
         // eslint-disable-next-line no-await-in-loop
         await entersState(voiceConnection, VoiceConnectionStatus.Ready, VOICE_CONNECTION_ATTEMPT_TIMEOUT_MS);
         if (generation !== this.voiceConnectionGeneration || this.voiceConnection !== voiceConnection) {
-          throw new Error('Voice connection attempt was cancelled.');
+          throw new Error('Der Verbindungsversuch wurde abgebrochen.');
         }
 
         return;
@@ -738,7 +738,7 @@ export default class {
         }
 
         if (!shouldRetry) {
-          throw new Error(`Failed to connect to the voice channel (${diagnostics}).`);
+          throw new Error(`Konnte dem Sprachkanal nicht beitreten. Habe ich dort die Rechte „Kanal ansehen“, „Verbinden“ und „Sprechen“? (${diagnostics})`);
         }
 
         // A fresh join requests new voice-server/session data; rejoin alone can reuse a stalled handshake.
@@ -759,7 +759,7 @@ export default class {
     }
 
     if (!currentSong) {
-      throw new Error('No song currently playing');
+      throw new Error('Gerade läuft kein Song');
     }
 
     if (currentQueueEntryVersion === null) {
@@ -777,7 +777,7 @@ export default class {
     }
 
     if (positionSeconds > currentSong.length) {
-      throw new Error('Seek position is outside the range of the song.');
+      throw new Error('So lang ist der Song nicht.');
     }
 
     if (stayPaused) {
@@ -852,7 +852,7 @@ export default class {
     }
 
     if (!currentSong) {
-      throw new Error('Queue empty.');
+      throw new Error('Die Warteschlange ist leer.');
     }
 
     if (currentQueueEntryVersion === null) {
@@ -1406,7 +1406,7 @@ export default class {
       if (currentSong) {
         this.add(currentSong);
       } else {
-        throw new Error('No song currently playing.');
+        throw new Error('Gerade läuft kein Song.');
       }
     }
 

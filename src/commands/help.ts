@@ -7,7 +7,7 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('help')
-    .setDescription('shows all available commands');
+    .setDescription('zeigt alle Befehle an');
 
   private commands: Command[] = [];
 
@@ -21,18 +21,18 @@ export default class implements Command {
       .join('\n');
 
     const usage = [
-      '**Listening sessions**',
-      'Add music with `/play`. Your confirmation is private; the shared card shows playback and controls.',
-      'When the queue ends, the card keeps the songs that played. Use **View full history** for the complete list.',
+      '**Hör-Sessions**',
+      'Füge Musik mit `/play` hinzu. Die Bestätigung siehst nur du; die gemeinsame Player-Karte zeigt Wiedergabe und Steuerung.',
+      'Wenn die Warteschlange zu Ende ist, zeigt die Karte die gespielten Songs. Den kompletten Verlauf gibt es unter **Ganzen Verlauf anzeigen**.',
       '',
-      '**Favorites**',
-      'A favorite saves a named search or track/playlist URL for this server, not audio or a copy of the queue.',
-      'Create one with `/favorites create name:lofi query:lofi hip hop`, then play it with `/favorites use name:lofi`.',
-      'Use `/favorites list` to see this server\'s favorites.',
+      '**Favoriten**',
+      'Ein Favorit speichert einen Suchbegriff oder Song-/Playlist-Link für diesen Server, nicht die Audiodatei oder die Warteschlange.',
+      'Erstellen mit `/favorites create name:lofi query:lofi hip hop`, abspielen mit `/favorites use name:lofi`.',
+      'Mit `/favorites list` siehst du alle Favoriten dieses Servers.',
       '',
-      '**Leaving after the queue ends**',
-      '`/config set-wait-after-queue-empties delay:60` waits 60 seconds before leaving voice.',
-      'Set `delay:0` to never leave because the queue is empty. `/config set-leave-if-no-listeners` is a separate setting.',
+      '**Verlassen, wenn die Warteschlange leer ist**',
+      '`/config set-wait-after-queue-empties delay:60` wartet 60 Sekunden, bevor der Bot den Sprachkanal verlässt.',
+      'Mit `delay:0` bleibt er auch bei leerer Warteschlange. `/config set-leave-if-no-listeners` ist eine eigene Einstellung.',
     ].join('\n');
 
     await interaction.reply({content: `${commandList}\n\n${usage}`, ephemeral: true});

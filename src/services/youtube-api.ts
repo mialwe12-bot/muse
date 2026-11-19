@@ -134,14 +134,14 @@ export default class {
     const videoId = url.length === 11 ? url : getYouTubeID(url);
 
     if (!videoId) {
-      throw new Error('Video could not be found.');
+      throw new Error('Video nicht gefunden.');
     }
 
     const result = await this.getVideosByID([videoId]);
     const video = result.at(0);
 
     if (!video) {
-      throw new Error('Video could not be found.');
+      throw new Error('Video nicht gefunden.');
     }
 
     return this.getMetadataFromVideo({video, shouldSplitChapters});
@@ -169,7 +169,7 @@ export default class {
     const playlist = playlists.at(0)!;
 
     if (!playlist) {
-      throw new Error('Playlist could not be found.');
+      throw new Error('Playlist nicht gefunden.');
     }
 
     const queuedPlaylist = {title: playlist.snippet.title, source: playlist.id};

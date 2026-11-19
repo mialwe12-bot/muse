@@ -11,15 +11,15 @@ import {getGuildSettings} from '../utils/get-guild-settings.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('queue')
-    .setDescription('show the current queue')
+    .setDescription('aktuelle Warteschlange anzeigen')
     .addIntegerOption(option => option
       .setName('page')
-      .setDescription('page of queue to show [default: 1]')
+      .setDescription('Seite der Warteschlange [Standard: 1]')
       .setMinValue(1)
       .setRequired(false))
     .addIntegerOption(option => option
       .setName('page-size')
-      .setDescription('how many items to display per page [default: 10, max: 30]')
+      .setDescription('Einträge pro Seite [Standard: 10, max: 30]')
       .setMinValue(1)
       .setMaxValue(30)
       .setRequired(false));

@@ -9,74 +9,74 @@ import {getGuildSettings} from '../utils/get-guild-settings.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('config')
-    .setDescription('configure bot settings')
+    .setDescription('Bot-Einstellungen ändern')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild.toString())
     .addSubcommand(subcommand => subcommand
       .setName('set-playlist-limit')
-      .setDescription('set the maximum number of tracks that can be added from a playlist')
+      .setDescription('maximale Anzahl an Songs, die aus einer Playlist hinzugefügt werden')
       .addIntegerOption(option => option
         .setName('limit')
-        .setDescription('maximum number of tracks')
+        .setDescription('maximale Anzahl an Songs')
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('set-wait-after-queue-empties')
-      .setDescription('set seconds to wait before leaving voice when the queue empties (0 to never leave)')
+      .setDescription('Sekunden bis zum Verlassen, wenn die Warteschlange leer ist (0 = nie verlassen)')
       .addIntegerOption(option => option
         .setName('delay')
-        .setDescription('delay in seconds (set to 0 to never leave)')
+        .setDescription('Wartezeit in Sekunden (0 = nie verlassen)')
         .setRequired(true)
         .setMinValue(0)))
     .addSubcommand(subcommand => subcommand
       .setName('set-leave-if-no-listeners')
-      .setDescription('set whether to leave when all other participants leave')
+      .setDescription('festlegen, ob der Bot geht, wenn alle anderen gegangen sind')
       .addBooleanOption(option => option
         .setName('value')
-        .setDescription('whether to leave when everyone else leaves')
+        .setDescription('gehen, wenn alle anderen gegangen sind?')
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('set-reduce-vol-when-voice')
-      .setDescription('set whether to turn down the volume when people speak')
+      .setDescription('festlegen, ob die Lautstärke gesenkt wird, wenn jemand spricht')
       .addBooleanOption(option => option
         .setName('value')
-        .setDescription('whether to turn down the volume when people speak')
+        .setDescription('Lautstärke senken, wenn jemand spricht?')
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('set-reduce-vol-when-voice-target')
-      .setDescription('set the target volume when people speak')
+      .setDescription('Ziel-Lautstärke, wenn jemand spricht')
       .addIntegerOption(option => option
         .setName('volume')
-        .setDescription('volume percentage (0 is muted, 100 is max & default)')
+        .setDescription('Lautstärke in Prozent (0 = stumm, 100 = maximal & Standard)')
         .setMinValue(0)
         .setMaxValue(100)
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('set-auto-announce-next-song')
-      .setDescription('set whether to announce the next song in the queue automatically')
+      .setDescription('festlegen, ob der nächste Song automatisch angekündigt wird')
       .addBooleanOption(option => option
         .setName('value')
-        .setDescription('whether to announce the next song in the queue automatically')
+        .setDescription('nächsten Song automatisch ankündigen?')
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('set-default-volume')
-      .setDescription('set default volume used when entering the voice channel')
+      .setDescription('Standard-Lautstärke beim Betreten des Sprachkanals')
       .addIntegerOption(option => option
         .setName('level')
-        .setDescription('volume percentage (0 is muted, 100 is max & default)')
+        .setDescription('Lautstärke in Prozent (0 = stumm, 100 = maximal & Standard)')
         .setMinValue(0)
         .setMaxValue(100)
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('set-default-queue-page-size')
-      .setDescription('set the default page size of the /queue command')
+      .setDescription('Standard-Seitengröße von /queue')
       .addIntegerOption(option => option
         .setName('page-size')
-        .setDescription('page size of the /queue command')
+        .setDescription('Seitengröße von /queue')
         .setMinValue(1)
         .setMaxValue(30)
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('get')
-      .setDescription('show all settings'));
+      .setDescription('alle Einstellungen anzeigen'));
 
   async execute(interaction: ChatInputCommandInteraction) {
     // Ensure guild settings exist before trying to update
@@ -87,7 +87,7 @@ export default class implements Command {
         const limit: number = interaction.options.getInteger('limit')!;
 
         if (limit < 1) {
-          throw new Error('invalid limit');
+          throw new Error('ungültiges Limit');
         }
 
         await prisma.setting.update({
@@ -99,7 +99,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 limit updated');
+        await interaction.reply('👍 Limit geändert');
 
         break;
       }
@@ -116,7 +116,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 wait delay updated');
+        await interaction.reply('👍 Wartezeit geändert');
 
         break;
       }
@@ -133,7 +133,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 leave setting updated');
+        await interaction.reply('👍 Verlassen-Einstellung geändert');
 
         break;
       }
@@ -150,7 +150,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 auto announce setting updated');
+        await interaction.reply('👍 Ankündigungs-Einstellung geändert');
 
         break;
       }
@@ -167,7 +167,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 volume setting updated');
+        await interaction.reply('👍 Lautstärke-Einstellung geändert');
 
         break;
       }
@@ -184,7 +184,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 default queue page size updated');
+        await interaction.reply('👍 Standard-Seitengröße geändert');
 
         break;
       }
@@ -201,7 +201,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 turn down volume setting updated');
+        await interaction.reply('👍 Absenk-Einstellung geändert');
 
         break;
       }
@@ -218,27 +218,27 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 turn down volume target setting updated');
+        await interaction.reply('👍 Ziel-Lautstärke beim Absenken geändert');
 
         break;
       }
 
       case 'get': {
-        const embed = new EmbedBuilder().setTitle('Config');
+        const embed = new EmbedBuilder().setTitle('Einstellungen');
 
         const config = await getGuildSettings(interaction.guild!.id);
 
         const settingsToShow = {
-          'Playlist Limit': config.playlistLimit,
-          'Wait before leaving after queue empty': config.secondsToWaitAfterQueueEmpties === 0
-            ? 'never leave'
+          'Playlist-Limit': config.playlistLimit,
+          'Wartezeit vor dem Verlassen bei leerer Warteschlange': config.secondsToWaitAfterQueueEmpties === 0
+            ? 'nie verlassen'
             : `${config.secondsToWaitAfterQueueEmpties}s`,
-          'Leave if there are no listeners': config.leaveIfNoListeners ? 'yes' : 'no',
-          'Auto announce next song in queue': config.autoAnnounceNextSong ? 'yes' : 'no',
-          'Default Volume': config.defaultVolume,
-          'Default queue page size': config.defaultQueuePageSize,
-          'Reduce volume when people speak': config.turnDownVolumeWhenPeopleSpeak ? 'yes' : 'no',
-          'Reduce volume when people speak target': config.turnDownVolumeWhenPeopleSpeakTarget,
+          'Verlassen, wenn niemand mehr zuhört': config.leaveIfNoListeners ? 'ja' : 'nein',
+          'Nächsten Song automatisch ankündigen': config.autoAnnounceNextSong ? 'ja' : 'nein',
+          'Standard-Lautstärke': config.defaultVolume,
+          'Standard-Seitengröße der Warteschlange': config.defaultQueuePageSize,
+          'Lautstärke senken, wenn jemand spricht': config.turnDownVolumeWhenPeopleSpeak ? 'ja' : 'nein',
+          'Ziel-Lautstärke beim Absenken': config.turnDownVolumeWhenPeopleSpeakTarget,
         };
 
         let description = '';
@@ -254,7 +254,7 @@ export default class implements Command {
       }
 
       default:
-        throw new Error('unknown subcommand');
+        throw new Error('unbekannter Unterbefehl');
     }
   }
 }

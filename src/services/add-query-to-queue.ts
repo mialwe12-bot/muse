@@ -21,7 +21,7 @@ const isSameQueueEntry = (capturedId: number | null, currentId: number | null) =
 
 const normalizeSkipError = (error: unknown) => (
   error instanceof Error && error.message === 'No songs in queue to forward to.'
-    ? new Error('no song to skip to')
+    ? new Error('kein Song zum Überspringen da')
     : error
 );
 
@@ -75,7 +75,7 @@ export default class AddQueryToQueue {
     let [newSongs, extraMsg] = await this.getSongs.getSongs(query, playlistLimit, shouldSplitChapters);
 
     if (newSongs.length === 0) {
-      throw new Error('no songs found');
+      throw new Error('keine Songs gefunden');
     }
 
     if (shuffleAdditions) {
@@ -116,7 +116,7 @@ export default class AddQueryToQueue {
       await player.play();
 
       if (wasPlayingSong) {
-        statusMsg = 'resuming playback';
+        statusMsg = 'Wiedergabe wird fortgesetzt';
       }
     } else if (player.status === STATUS.IDLE) {
       // Player is idle, start playback instead
@@ -124,7 +124,7 @@ export default class AddQueryToQueue {
     }
 
     if (!player.getCurrent()) {
-      throw new Error('no playable songs found');
+      throw new Error('keine abspielbaren Songs gefunden');
     }
 
     let didSkipCurrentTrack = false;
@@ -144,10 +144,10 @@ export default class AddQueryToQueue {
 
     const title = escapeMarkdown(firstSong.title);
     const responseContent = (publicationWarning = '') => {
-      const suffix = `${didSkipCurrentTrack ? ' and current track skipped' : ''}${extraMsg}${publicationWarning}`;
+      const suffix = `${didSkipCurrentTrack ? ', aktueller Song übersprungen' : ''}${extraMsg}${publicationWarning}`;
       return newSongs.length === 1
-        ? formatSongReply(title, 'u betcha, **', `** added to the${addToFrontOfQueue ? ' front of the' : ''} queue${suffix}`)
-        : formatSongReply(title, 'u betcha, **', `** and ${newSongs.length - 1} other songs were added to the queue${suffix}`);
+        ? formatSongReply(title, '👍 **', `** ${addToFrontOfQueue ? 'vorne in die' : 'zur'} Warteschlange hinzugefügt${suffix}`)
+        : formatSongReply(title, '👍 **', `** und ${newSongs.length - 1} weitere Songs zur Warteschlange hinzugefügt${suffix}`);
     };
 
     const receipt = interaction.editReply({content: responseContent(), allowedMentions: {parse: []}});
@@ -157,7 +157,7 @@ export default class AddQueryToQueue {
       // The tracks have already been added. A Discord/persistence failure must
       // not make the requester retry and accidentally enqueue them twice.
       console.warn(`Could not publish the session player for guild ${guildId}.`);
-      return '\nThe player card could not be shown. Check my channel permissions, then use /now-playing.';
+      return '\nDie Player-Karte konnte nicht angezeigt werden. Prüfe meine Kanal-Rechte und nutze dann /now-playing.';
     });
 
     await receipt;

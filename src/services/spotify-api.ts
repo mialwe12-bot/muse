@@ -86,7 +86,7 @@ export default class {
     });
 
     if (!response.ok) {
-      throw new Error(`Spotify answered ${response.status} for that ${type}`);
+      throw new Error(`Spotify hat mit ${response.status} geantwortet (${type})`);
     }
 
     const match = /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s.exec(await response.text());
@@ -94,7 +94,7 @@ export default class {
     const entity: EmbedEntity | undefined = match ? JSON.parse(match[1])?.props?.pageProps?.state?.data?.entity : undefined;
 
     if (!entity || !Array.isArray(entity.trackList)) {
-      throw new Error(`couldn't read that Spotify ${type} (is it private or deleted?)`);
+      throw new Error(`konnte diese Spotify-${type} nicht lesen (privat oder gelöscht?)`);
     }
 
     return entity;

@@ -28,12 +28,12 @@ export default class implements Command {
     this.addQueryToQueue = addQueryToQueue;
 
     const queryDescription = thirdParty === undefined
-      ? 'YouTube URL or search query'
-      : 'YouTube URL, Spotify URL, or search query';
+      ? 'YouTube-Link oder Suchbegriff'
+      : 'YouTube-Link, Spotify-Link oder Suchbegriff';
 
     this.slashCommand = new SlashCommandBuilder()
       .setName('play')
-      .setDescription('play a song')
+      .setDescription('einen Song abspielen')
       .addStringOption(option => option
         .setName('query')
         .setDescription(queryDescription)
@@ -41,16 +41,16 @@ export default class implements Command {
         .setRequired(true))
       .addBooleanOption(option => option
         .setName('immediate')
-        .setDescription('add track to the front of the queue'))
+        .setDescription('Song vorne in die Warteschlange einreihen'))
       .addBooleanOption(option => option
         .setName('shuffle')
-        .setDescription('shuffle the input if you\'re adding multiple tracks'))
+        .setDescription('bei mehreren Songs die Reihenfolge mischen'))
       .addBooleanOption(option => option
         .setName('split')
-        .setDescription('if a track has chapters, split it'))
+        .setDescription('Song mit Kapiteln in einzelne Kapitel aufteilen'))
       .addBooleanOption(option => option
         .setName('skip')
-        .setDescription('skip the currently playing track'));
+        .setDescription('aktuellen Song überspringen'));
   }
 
   public async execute(interaction: ChatInputCommandInteraction): Promise<void> {

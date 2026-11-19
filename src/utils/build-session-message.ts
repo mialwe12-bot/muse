@@ -9,7 +9,7 @@ export const SESSION_BUTTON_PREFIX = 'muse-session:';
 const MAX_DESCRIPTION_LENGTH = 4096;
 const MAX_MESSAGE_EMBED_TEXT = 6000;
 const MAX_MESSAGE_EMBEDS = 10;
-const CONTINUED_HISTORY_TITLE = 'Session history (continued)';
+const CONTINUED_HISTORY_TITLE = 'Session-Verlauf (Fortsetzung)';
 
 export const sessionButtonId = (sessionId: string, action: string, page = 0): string => `${SESSION_BUTTON_PREFIX}${sessionId}:${action}:${page}`;
 
@@ -30,7 +30,7 @@ type Track = {title: string; url: string; source: string | MediaSource; offset: 
 
 /** Display URLs are bounded independently of the original playback source. */
 const trackLink = (track: Track, titleLimit = 120): string => {
-  const title = escapeMarkdown(truncate(track.title.replace(/[\r\n\t]/g, ' ').trim() || 'Untitled track', titleLimit));
+  const title = escapeMarkdown(truncate(track.title.replace(/[\r\n\t]/g, ' ').trim() || 'Unbenannter Song', titleLimit));
   let {url} = track;
   if (track.source === 'Youtube' || track.source === MediaSource.Youtube) {
     if (/^[\w-]{11}$/.test(url)) {
@@ -57,8 +57,8 @@ const trackLink = (track: Track, titleLimit = 120): string => {
 
 const entryLine = (entry: ListeningSessionEntry, index: number): string => {
   const labels: Record<ListeningSessionEntry['status'], string> = {
-    playing: 'Playing', completed: 'Played', skipped: 'Skipped', stopped: 'Stopped',
-    disconnected: 'Disconnected', interrupted: 'Interrupted',
+    playing: 'Läuft', completed: 'Gespielt', skipped: 'Übersprungen', stopped: 'Gestoppt',
+    disconnected: 'Getrennt', interrupted: 'Unterbrochen',
   };
   return `${index + 1}. ${trackLink(entry)} — ${labels[entry.status]}`;
 };
@@ -84,7 +84,7 @@ const historyEmbed = (title: string) => new EmbedBuilder().setColor(0x365c65).se
 
 /** Fill the current message before adding another, keeping each entry intact. */
 const appendHistory = (messages: SessionMessagePayload[], session: ListeningSessionRecord): SessionMessagePayload[] => {
-  const lines = session.entries.length > 0 ? session.entries.map(entryLine) : ['No tracks played.'];
+  const lines = session.entries.length > 0 ? session.entries.map(entryLine) : ['Keine Songs gespielt.'];
   for (const line of lines) {
     let current = messages[messages.length - 1];
     let embed = current.embeds[current.embeds.length - 1];
@@ -112,9 +112,9 @@ const appendHistory = (messages: SessionMessagePayload[], session: ListeningSess
 
 const recapDescription = (session: ListeningSessionRecord): string => {
   const summary = session.endedAt
-    ? `Session ended <t:${Math.floor(session.endedAt.getTime() / 1000)}:R>.`
-    : 'Queue complete. Add a song to keep listening.';
-  return `${summary}\n\n**Session history**`;
+    ? `Session beendet <t:${Math.floor(session.endedAt.getTime() / 1000)}:R>.`
+    : 'Warteschlange zu Ende. Füge einen Song hinzu, um weiterzuhören.';
+  return `${summary}\n\n**Session-Verlauf**`;
 };
 
 export const buildSessionMessages = (session: ListeningSessionRecord, player?: Player, queuePageSize = 10): SessionMessagePayload[] => {
@@ -124,38 +124,38 @@ export const buildSessionMessages = (session: ListeningSessionRecord, player?: P
 
   if (current && player) {
     components.push(row(
-      button(session, 'previous', 'Previous', {disabled: !player.canGoBack()}),
+      button(session, 'previous', 'Zurück', {disabled: !player.canGoBack()}),
       button(session, 'backward', '−10s', {disabled: current.isLive}),
-      button(session, player.status === STATUS.PAUSED ? 'resume' : 'pause', player.status === STATUS.PAUSED ? 'Resume' : 'Pause', {style: ButtonStyle.Primary}),
+      button(session, player.status === STATUS.PAUSED ? 'resume' : 'pause', player.status === STATUS.PAUSED ? 'Fortsetzen' : 'Pause', {style: ButtonStyle.Primary}),
       button(session, 'forward', '+10s', {disabled: current.isLive}),
-      button(session, 'next', 'Next', {disabled: !player.canGoForward(1)}),
+      button(session, 'next', 'Weiter', {disabled: !player.canGoForward(1)}),
     ));
     components.push(row(
-      button(session, 'queue', 'Queue'),
-      button(session, 'shuffle', 'Shuffle', {disabled: player.isQueueEmpty()}),
+      button(session, 'queue', 'Warteschlange'),
+      button(session, 'shuffle', 'Mischen', {disabled: player.isQueueEmpty()}),
     ));
   }
 
   if (current && player) {
     const embed = buildQueueEmbed(player, 1, queuePageSize);
     // Pagination belongs to the full queue view; an empty preview needs no summary.
-    embed.setFields(player.isQueueEmpty() ? [] : (embed.data.fields ?? []).filter(field => field.name !== 'Page'));
+    embed.setFields(player.isQueueEmpty() ? [] : (embed.data.fields ?? []).filter(field => field.name !== 'Seite'));
     return [message(embed, components)];
   }
 
-  const recap = historyEmbed('Session recap').setDescription(recapDescription(session));
+  const recap = historyEmbed('Session-Rückblick').setDescription(recapDescription(session));
   return appendHistory([message(recap, components)], session);
 };
 
 export const buildSessionMessage = (session: ListeningSessionRecord, player?: Player, queuePageSize = 10): SessionMessagePayload => buildSessionMessages(session, player, queuePageSize)[0];
 
 const pagination = (session: ListeningSessionRecord, action: string, page: number, pages: number) => row(
-  button(session, action, 'Previous page', {page: page - 1, disabled: page === 0}),
-  button(session, action, 'Next page', {page: page + 1, disabled: page + 1 >= pages}),
+  button(session, action, 'Vorherige Seite', {page: page - 1, disabled: page === 0}),
+  button(session, action, 'Nächste Seite', {page: page + 1, disabled: page + 1 >= pages}),
 );
 
 export const buildHistoryMessages = (session: ListeningSessionRecord): SessionMessagePayload[] => appendHistory([
-  message(historyEmbed('Session history'), []),
+  message(historyEmbed('Session-Verlauf'), []),
 ], session);
 
 export const buildQueueMessage = (session: ListeningSessionRecord, player: Player, requestedPage = 0, pageSize = 10) => {
@@ -168,11 +168,11 @@ export const buildQueueMessage = (session: ListeningSessionRecord, player: Playe
 export const buildMoreMessage = (session: ListeningSessionRecord, player: Player) => {
   const current = player.getCurrent();
   const seekDisabled = !current || current.isLive;
-  const embed = new EmbedBuilder().setColor(0x365c65).setTitle('Playback controls')
-    .setDescription('Playback controls are available to listeners in the bot\'s voice channel.');
+  const embed = new EmbedBuilder().setColor(0x365c65).setTitle('Wiedergabe-Steuerung')
+    .setDescription('Die Steuerung können alle nutzen, die im Sprachkanal des Bots sind.');
   return message(embed, [row(
-    button(session, 'backward', 'Back 10 seconds', {disabled: seekDisabled}),
-    button(session, 'forward', 'Forward 10 seconds', {disabled: seekDisabled}),
-    button(session, 'shuffle', 'Shuffle', {disabled: player.isQueueEmpty()}),
+    button(session, 'backward', '10 Sekunden zurück', {disabled: seekDisabled}),
+    button(session, 'forward', '10 Sekunden vor', {disabled: seekDisabled}),
+    button(session, 'shuffle', 'Mischen', {disabled: player.isQueueEmpty()}),
   )]);
 };

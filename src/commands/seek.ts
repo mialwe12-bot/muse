@@ -11,10 +11,10 @@ import durationStringToSeconds from '../utils/duration-string-to-seconds.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('seek')
-    .setDescription('seek to a position from beginning of song')
+    .setDescription('zu einer Stelle im Song springen')
     .addStringOption(option =>
       option.setName('time')
-        .setDescription('an interval expression or number of seconds (1m, 30s, 100)')
+        .setDescription('Zeitangabe oder Sekunden (z. B. 1m, 30s, 100)')
         .setRequired(true),
     );
 
@@ -32,11 +32,11 @@ export default class implements Command {
     const currentSong = player.getCurrent();
 
     if (!currentSong) {
-      throw new Error('nothing is playing');
+      throw new Error('gerade läuft nichts');
     }
 
     if (currentSong.isLive) {
-      throw new Error('can\'t seek in a livestream');
+      throw new Error('in einem Livestream kann man nicht spulen');
     }
 
     const time = interaction.options.getString('time')!.trim();
@@ -58,7 +58,7 @@ export default class implements Command {
     }
 
     if (seekTime > currentSong.length) {
-      throw new Error('can\'t seek past the end of the song');
+      throw new Error('so lang ist der Song nicht');
     }
 
     await Promise.all([
@@ -66,6 +66,6 @@ export default class implements Command {
       interaction.deferReply(),
     ]);
 
-    await interaction.editReply(`👍 seeked to ${prettyTime(player.getPosition())}`);
+    await interaction.editReply(`👍 gespult zu ${prettyTime(player.getPosition())}`);
   }
 }

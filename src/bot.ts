@@ -90,13 +90,13 @@ export default class {
           }
 
           if (!interaction.guild) {
-            await interaction.reply(errorMsg('you can\'t use this bot in a DM'));
+            await interaction.reply(errorMsg('den Bot kannst du nicht in Direktnachrichten benutzen'));
             return;
           }
 
           const requiresVC = command.requiresVC instanceof Function ? command.requiresVC(interaction) : command.requiresVC;
           if (requiresVC && interaction.member && !isUserInVoice(interaction.guild, interaction.member.user as User)) {
-            await interaction.reply({content: errorMsg('gotta be in a voice channel'), ephemeral: true});
+            await interaction.reply({content: errorMsg('du musst in einem Sprachkanal sein'), ephemeral: true});
             return;
           }
 

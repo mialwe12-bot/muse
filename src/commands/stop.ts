@@ -9,7 +9,7 @@ import Command from './index.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('stop')
-    .setDescription('stop playback, disconnect, and clear all songs in the queue');
+    .setDescription('Wiedergabe stoppen, Sprachkanal verlassen und Warteschlange leeren');
 
   public requiresVC = true;
 
@@ -23,10 +23,10 @@ export default class implements Command {
     const player = this.playerManager.get(interaction.guild!.id);
 
     if (!player.voiceConnection) {
-      throw new Error('not connected');
+      throw new Error('ich bin mit keinem Sprachkanal verbunden');
     }
 
     player.stop();
-    await interaction.reply('u betcha, stopped');
+    await interaction.reply('⏹️ alles klar, gestoppt');
   }
 }

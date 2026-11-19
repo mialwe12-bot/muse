@@ -10,7 +10,7 @@ import SessionPlayer from '../services/session-player.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('now-playing')
-    .setDescription('shows the currently played song');
+    .setDescription('zeigt den aktuellen Song');
 
   private readonly playerManager: PlayerManager;
 
@@ -23,11 +23,11 @@ export default class implements Command {
     const player = this.playerManager.get(interaction.guild!.id);
 
     if (!player.listeningSession?.snapshot()) {
-      throw new Error('nothing is currently playing');
+      throw new Error('gerade läuft nichts');
     }
 
     await interaction.deferReply({ephemeral: true});
     const url = await this.sessionPlayer.ensureMessage(player, interaction.channel as GuildTextBasedChannel);
-    await interaction.editReply({content: `[Go to player](${url})`, allowedMentions: {parse: []}});
+    await interaction.editReply({content: `[Zum Player](${url})`, allowedMentions: {parse: []}});
   }
 }

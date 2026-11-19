@@ -14,51 +14,51 @@ const MAX_NAME_LENGTH = 100;
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('favorites')
-    .setDescription('save and reuse named searches or URLs for this server')
+    .setDescription('Suchbegriffe oder Links als Favoriten für diesen Server speichern')
     .addSubcommand(subcommand => subcommand
       .setName('use')
-      .setDescription('play a saved search or URL')
+      .setDescription('einen gespeicherten Favoriten abspielen')
       .addStringOption(option => option
         .setName('name')
-        .setDescription('name of favorite')
+        .setDescription('Name des Favoriten')
         .setRequired(true)
         .setAutocomplete(true))
       .addBooleanOption(option => option
         .setName('immediate')
-        .setDescription('add track to the front of the queue'))
+        .setDescription('Song vorne in die Warteschlange einreihen'))
       .addBooleanOption(option => option
         .setName('shuffle')
-        .setDescription('shuffle the input if you\'re adding multiple tracks'))
+        .setDescription('bei mehreren Songs die Reihenfolge mischen'))
       .addBooleanOption(option => option
         .setName('split')
-        .setDescription('if a track has chapters, split it'))
+        .setDescription('Song mit Kapiteln in einzelne Kapitel aufteilen'))
       .addBooleanOption(option => option
         .setName('skip')
-        .setDescription('skip the currently playing track')))
+        .setDescription('aktuellen Song überspringen')))
     .addSubcommand(subcommand => subcommand
       .setName('list')
-      .setDescription('list all favorites'))
+      .setDescription('alle Favoriten anzeigen'))
     .addSubcommand(subcommand => subcommand
       .setName('create')
-      .setDescription('save a named search or URL for this server')
+      .setDescription('einen Suchbegriff oder Link als Favorit speichern')
       .addStringOption(option => option
         .setName('name')
-        .setDescription('you\'ll type this when using this favorite')
+        .setDescription('diesen Namen gibst du beim Abspielen ein')
         .setMinLength(1)
         .setMaxLength(MAX_NAME_LENGTH)
         .setRequired(true))
       .addStringOption(option => option
         .setName('query')
-        .setDescription('any input you\'d normally give to the play command')
+        .setDescription('alles, was du sonst bei /play eingeben würdest')
         .setMinLength(1)
         .setRequired(true),
       ))
     .addSubcommand(subcommand => subcommand
       .setName('remove')
-      .setDescription('remove a favorite')
+      .setDescription('einen Favoriten löschen')
       .addStringOption(option => option
         .setName('name')
-        .setDescription('name of favorite')
+        .setDescription('Name des Favoriten')
         .setAutocomplete(true)
         .setRequired(true),
       ),
@@ -84,7 +84,7 @@ export default class implements Command {
         await this.remove(interaction);
         break;
       default:
-        throw new Error('unknown subcommand');
+        throw new Error('unbekannter Unterbefehl');
     }
   }
 
@@ -126,7 +126,7 @@ export default class implements Command {
     });
 
     if (!favorite) {
-      throw new Error('no favorite with that name exists');
+      throw new Error('es gibt keinen Favoriten mit diesem Namen');
     }
 
     await this.addQueryToQueue.addToQueue({
@@ -147,7 +147,7 @@ export default class implements Command {
     });
 
     if (favorites.length === 0) {
-      await interaction.reply('there aren\'t any favorites yet');
+      await interaction.reply('es gibt noch keine Favoriten');
       return;
     }
 
@@ -157,7 +157,7 @@ export default class implements Command {
       const attribution = ` (<@${favorite.authorId}>)`;
       fields[index] = {
         inline: false,
-        name: truncate(favorite.name || '(unnamed favorite)', 256),
+        name: truncate(favorite.name || '(Favorit ohne Namen)', 256),
         value: `${truncate(favorite.query, 1024 - attribution.length)}${attribution}`,
       };
     }
@@ -180,11 +180,11 @@ export default class implements Command {
     const query = interaction.options.getString('query')!.trim();
 
     if (name.length === 0 || name.length > MAX_NAME_LENGTH) {
-      throw new Error(`favorite name must be between 1 and ${MAX_NAME_LENGTH} characters`);
+      throw new Error(`der Name muss zwischen 1 und ${MAX_NAME_LENGTH} Zeichen lang sein`);
     }
 
     if (query.length === 0) {
-      throw new Error('favorite query must not be empty');
+      throw new Error('der Suchbegriff darf nicht leer sein');
     }
 
     const existingFavorite = await prisma.favoriteQuery.findFirst({where: {
@@ -193,7 +193,7 @@ export default class implements Command {
     }});
 
     if (existingFavorite) {
-      throw new Error('a favorite with that name already exists');
+      throw new Error('es gibt schon einen Favoriten mit diesem Namen');
     }
 
     await prisma.favoriteQuery.create({
@@ -205,7 +205,7 @@ export default class implements Command {
       },
     });
 
-    await interaction.reply('👍 favorite created');
+    await interaction.reply('👍 Favorit gespeichert');
   }
 
   private async remove(interaction: ChatInputCommandInteraction) {
@@ -217,17 +217,17 @@ export default class implements Command {
     }});
 
     if (!favorite) {
-      throw new Error('no favorite with that name exists');
+      throw new Error('es gibt keinen Favoriten mit diesem Namen');
     }
 
     const isUserGuildOwner = interaction.member!.user.id === interaction.guild!.ownerId;
 
     if (favorite.authorId !== interaction.member!.user.id && !isUserGuildOwner) {
-      throw new Error('you can only remove your own favorites');
+      throw new Error('du kannst nur deine eigenen Favoriten löschen');
     }
 
     await prisma.favoriteQuery.delete({where: {id: favorite.id}});
 
-    await interaction.reply('👍 favorite removed');
+    await interaction.reply('👍 Favorit gelöscht');
   }
 }

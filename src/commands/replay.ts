@@ -9,7 +9,7 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('replay')
-    .setDescription('replay the current song');
+    .setDescription('aktuellen Song von vorne abspielen');
 
   public requiresVC = true;
 
@@ -25,11 +25,11 @@ export default class implements Command {
     const currentSong = player.getCurrent();
 
     if (!currentSong) {
-      throw new Error('nothing is playing');
+      throw new Error('gerade läuft nichts');
     }
 
     if (currentSong.isLive) {
-      throw new Error('can\'t replay a livestream');
+      throw new Error('einen Livestream kann man nicht neu starten');
     }
 
     await Promise.all([
@@ -37,6 +37,6 @@ export default class implements Command {
       interaction.deferReply(),
     ]);
 
-    await interaction.editReply('👍 replayed the current song');
+    await interaction.editReply('👍 Song startet von vorne');
   }
 }

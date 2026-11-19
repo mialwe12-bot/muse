@@ -9,7 +9,7 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('shuffle')
-    .setDescription('shuffle the current queue');
+    .setDescription('Warteschlange mischen');
 
   public requiresVC = true;
 
@@ -23,11 +23,11 @@ export default class implements Command {
     const player = this.playerManager.get(interaction.guild!.id);
 
     if (player.isQueueEmpty()) {
-      throw new Error('not enough songs to shuffle');
+      throw new Error('zu wenige Songs zum Mischen');
     }
 
     player.shuffle();
 
-    await interaction.reply('shuffled');
+    await interaction.reply('🔀 gemischt');
   }
 }

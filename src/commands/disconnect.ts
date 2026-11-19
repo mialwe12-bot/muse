@@ -9,7 +9,7 @@ import Command from './index.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('disconnect')
-    .setDescription('pause and disconnect Muse');
+    .setDescription('pausieren und den Sprachkanal verlassen');
 
   public requiresVC = true;
 
@@ -23,11 +23,11 @@ export default class implements Command {
     const player = this.playerManager.get(interaction.guild!.id);
 
     if (!player.voiceConnection) {
-      throw new Error('not connected');
+      throw new Error('ich bin mit keinem Sprachkanal verbunden');
     }
 
     player.disconnect();
 
-    await interaction.reply('u betcha, disconnected');
+    await interaction.reply('👋 alles klar, Verbindung getrennt');
   }
 }

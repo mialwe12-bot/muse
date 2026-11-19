@@ -12,7 +12,7 @@ import {ChatInputCommandInteraction, GuildMember, GuildTextBasedChannel} from 'd
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('resume')
-    .setDescription('resume playback');
+    .setDescription('Wiedergabe fortsetzen');
 
   public requiresVC = true;
 
@@ -27,12 +27,12 @@ export default class implements Command {
     const player = this.playerManager.get(interaction.guild!.id);
     const [targetVoiceChannel] = getMemberVoiceChannel(interaction.member as GuildMember) ?? getMostPopularVoiceChannel(interaction.guild!);
     if (player.status === STATUS.PLAYING) {
-      throw new Error('already playing, give me a song name');
+      throw new Error('läuft schon – gib mir einen Songnamen');
     }
 
     // Must be resuming play
     if (!player.getCurrent()) {
-      throw new Error('nothing to play');
+      throw new Error('nichts zum Abspielen da');
     }
 
     await interaction.deferReply({ephemeral: true});
@@ -44,10 +44,10 @@ export default class implements Command {
 
     await player.play();
     if (!player.getCurrent()) {
-      throw new Error('no playable songs found');
+      throw new Error('keine abspielbaren Songs gefunden');
     }
 
     const url = await this.sessionPlayer.ensureMessage(player, interaction.channel as GuildTextBasedChannel);
-    await interaction.editReply({content: `Playback resumed. [Go to player](${url})`, allowedMentions: {parse: []}});
+    await interaction.editReply({content: `▶️ Wiedergabe fortgesetzt. [Zum Player](${url})`, allowedMentions: {parse: []}});
   }
 }

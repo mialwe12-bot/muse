@@ -10,7 +10,7 @@ import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('unskip')
-    .setDescription('go back in the queue by one song');
+    .setDescription('einen Song zurückgehen');
 
   public requiresVC = true;
 
@@ -27,13 +27,13 @@ export default class implements Command {
     try {
       await player.back();
       await interaction.followUp({
-        content: 'back \'er up\'',
+        content: '⏮️ ein Song zurück',
         embeds: player.getCurrent() ? [buildPlayingMessageEmbed(player)] : [],
       });
       await interaction.deleteReply().catch(() => undefined);
     } catch (error: unknown) {
       if (error instanceof Error && error.message === 'No songs in queue to go back to.') {
-        throw new Error('no song to go back to');
+        throw new Error('kein vorheriger Song da');
       }
 
       throw error;

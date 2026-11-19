@@ -34,7 +34,7 @@ export default class SessionPlayer {
   public async ensureMessage(player: Player, channel: GuildTextBasedChannel, expectedSessionId?: string): Promise<string> {
     const controller = player.listeningSession;
     if (expectedSessionId && controller?.snapshot()?.id !== expectedSessionId) {
-      throw new Error('This listening session has ended.');
+      throw new Error('Diese Hör-Session ist beendet.');
     }
 
     // Save the origin before publication can fail. A later recovery request in
@@ -42,7 +42,7 @@ export default class SessionPlayer {
     controller?.setChannel(channel.id);
     const captured = controller?.snapshot();
     if (!controller || !captured) {
-      throw new Error('No listening session is available.');
+      throw new Error('Keine Hör-Session verfügbar.');
     }
 
     // Pin this request before waiting for another publication or database write.
@@ -55,7 +55,7 @@ export default class SessionPlayer {
       const originalChannel = !originalChannelId || originalChannelId === channel.id
         ? channel : await channel.client.channels.fetch(originalChannelId);
       if (!originalChannel?.isTextBased() || !('guild' in originalChannel) || originalChannel.guild.id !== player.guildId) {
-        throw new Error('The player channel is no longer accessible.');
+        throw new Error('Auf den Player-Kanal habe ich keinen Zugriff mehr.');
       }
 
       let card: Message | undefined;
@@ -107,7 +107,7 @@ export default class SessionPlayer {
     controller?.setChannel(channel.id);
     const captured = controller?.snapshot();
     if (!controller || !captured) {
-      throw new Error('No listening session is available.');
+      throw new Error('Keine Hör-Session verfügbar.');
     }
 
     // Reserve order synchronously, before the Discord send or any other await.
@@ -119,7 +119,7 @@ export default class SessionPlayer {
 
       const {card} = sent;
       if (!this.isPublicReceipt(card, channel, player.guildId)) {
-        throw new Error('The player needs a public bot receipt in its text channel.');
+        throw new Error('Der Player braucht eine öffentliche Bot-Nachricht in seinem Textkanal.');
       }
 
       await controller.flush();
@@ -202,7 +202,7 @@ export default class SessionPlayer {
       try {
         const channel = await client.channels.fetch(session.channelId);
         if (!channel?.isTextBased() || !('guild' in channel) || channel.guild.id !== session.guildId) {
-          throw new Error('The original player channel is no longer accessible.');
+          throw new Error('Auf den ursprünglichen Player-Kanal habe ich keinen Zugriff mehr.');
         }
 
         let card: Message | undefined;
@@ -273,7 +273,7 @@ export default class SessionPlayer {
     const page = Number(rawPage);
     if (parts.length !== 3 || !/^[\da-f-]{36}$/i.test(sessionId) || !Number.isSafeInteger(page) || page < 0
       || !interaction.guild || !['history', 'queue', 'more', ...Object.keys(playbackCommands)].includes(action)) {
-      await interaction.editReply('This player control is no longer available.');
+      await interaction.editReply('Diese Steuerung ist nicht mehr verfügbar.');
       return;
     }
 
@@ -281,7 +281,7 @@ export default class SessionPlayer {
     await existingPlayer?.listeningSession?.flush();
     const session = await this.store.load(sessionId, interaction.guild.id);
     if (!session || !await this.canReadSession(interaction, session)) {
-      await interaction.editReply('This listening session is not available in this channel.');
+      await interaction.editReply('Diese Hör-Session ist in diesem Kanal nicht verfügbar.');
       return;
     }
 
@@ -298,7 +298,7 @@ export default class SessionPlayer {
     }
 
     if (!interaction.message.flags.has(MessageFlags.Ephemeral) && interaction.message.id !== session.messageId) {
-      await interaction.editReply('The player moved. Use the controls on its latest queue receipt.');
+      await interaction.editReply('Der Player ist umgezogen. Nutze die Steuerung der neuesten Nachricht.');
       return;
     }
 
@@ -306,12 +306,12 @@ export default class SessionPlayer {
       ? (await getGuildSettings(interaction.guild.id)).defaultQueuePageSize : undefined;
     const player = this.currentPlayer(session);
     if (!player) {
-      await interaction.editReply('This listening session has ended. Its history is still available.');
+      await interaction.editReply('Diese Hör-Session ist beendet. Der Verlauf ist noch verfügbar.');
       return;
     }
 
     if (action === 'queue' && !player.getCurrent()) {
-      await interaction.editReply('The queue is empty.');
+      await interaction.editReply('Die Warteschlange ist leer.');
       return;
     }
 
@@ -327,13 +327,13 @@ export default class SessionPlayer {
     const {guild} = interaction;
     const active = this.currentPlayer(session);
     if (!guild || !active || !session.messageId || !session.channelId) {
-      await interaction.editReply('This listening session has ended.');
+      await interaction.editReply('Diese Hör-Session ist beendet.');
       return;
     }
 
     const channel = await guild.channels.fetch(session.channelId, {force: true});
     if (!channel?.isTextBased()) {
-      await interaction.editReply('The player channel is no longer accessible.');
+      await interaction.editReply('Auf den Player-Kanal habe ich keinen Zugriff mehr.');
       return;
     }
 
@@ -346,12 +346,12 @@ export default class SessionPlayer {
       }
 
       if (this.currentPlayer(session) !== active) {
-        await interaction.editReply('This listening session has ended.');
+        await interaction.editReply('Diese Hör-Session ist beendet.');
         return;
       }
 
       await this.ensureMessage(active, channel, session.id);
-      await interaction.editReply('The player card was replaced. Use its new controls.');
+      await interaction.editReply('Die Player-Karte wurde ersetzt. Nutze die neue Steuerung.');
       return;
     }
 
@@ -362,7 +362,7 @@ export default class SessionPlayer {
       && Boolean(active.voiceConnection?.joinConfig.channelId);
     const command = playbackCommands[action];
     if (!canControl() || !await canUsePlaybackCommand(card, interaction.user.id, command) || !canControl()) {
-      await interaction.editReply('Join the bot\'s voice channel and check your permission to use this command.');
+      await interaction.editReply('Geh in den Sprachkanal des Bots und prüfe, ob du diesen Befehl benutzen darfst.');
       return;
     }
 
@@ -389,7 +389,7 @@ export default class SessionPlayer {
     await player.listeningSession?.flush();
     const saved = await this.store.load(sessionId, player.guildId);
     if (!saved) {
-      throw new Error('The listening-session history is not available.');
+      throw new Error('Der Verlauf der Hör-Session ist nicht verfügbar.');
     }
 
     return saved;
@@ -465,7 +465,7 @@ export default class SessionPlayer {
 
     const archived = await this.capturedSession(player, sessionId);
     if (!archived.endedAt) {
-      throw new Error('The completed listening-session history is not available.');
+      throw new Error('Der Verlauf der beendeten Hör-Session ist nicht verfügbar.');
     }
 
     await this.store.save({...archived, channelId, messageId});
@@ -476,7 +476,7 @@ export default class SessionPlayer {
       await player.listeningSession?.flush();
       const completed = await this.store.load(sessionId, player.guildId);
       if (!completed?.endedAt) {
-        throw new Error('The completed listening-session history is not available.');
+        throw new Error('Der Verlauf der beendeten Hör-Session ist nicht verfügbar.');
       }
 
       // The controller now owns a different session. Bind only the completed

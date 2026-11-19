@@ -10,15 +10,15 @@ import formatSongReply from '../utils/format-song-reply.js';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('move')
-    .setDescription('move songs within the queue')
+    .setDescription('Songs in der Warteschlange verschieben')
     .addIntegerOption(option =>
       option.setName('from')
-        .setDescription('position of the song to move')
+        .setDescription('Position des Songs, der verschoben wird')
         .setRequired(true),
     )
     .addIntegerOption(option =>
       option.setName('to')
-        .setDescription('position to move the song to')
+        .setDescription('neue Position des Songs')
         .setRequired(true));
 
   private readonly playerManager: PlayerManager;
@@ -34,15 +34,15 @@ export default class implements Command {
     const to = interaction.options.getInteger('to') ?? 1;
 
     if (from < 1) {
-      throw new Error('position must be at least 1');
+      throw new Error('die Position muss mindestens 1 sein');
     }
 
     if (to < 1) {
-      throw new Error('position must be at least 1');
+      throw new Error('die Position muss mindestens 1 sein');
     }
 
     const {title} = player.move(from, to);
 
-    await interaction.reply(formatSongReply(title, 'moved **', '** to position **' + String(to) + '**'));
+    await interaction.reply(formatSongReply(title, '**', '** auf Position **' + String(to) + '** verschoben'));
   }
 }

@@ -9,10 +9,10 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 export default class implements Command {
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('volume')
-    .setDescription('set current player volume level')
+    .setDescription('aktuelle Lautstärke einstellen')
     .addIntegerOption(option =>
       option.setName('level')
-        .setDescription('volume percentage (0 is muted, 100 is max & default)')
+        .setDescription('Lautstärke in Prozent (0 = stumm, 100 = maximal & Standard)')
         .setMinValue(0)
         .setMaxValue(100)
         .setRequired(true),
@@ -32,11 +32,11 @@ export default class implements Command {
     const currentSong = player.getCurrent();
 
     if (!currentSong) {
-      throw new Error('nothing is playing');
+      throw new Error('gerade läuft nichts');
     }
 
     const level = interaction.options.getInteger('level') ?? 100;
     player.setVolume(level);
-    await interaction.reply(`Set volume to ${level}%`);
+    await interaction.reply(`🔉 Lautstärke auf ${level}% gesetzt`);
   }
 }
