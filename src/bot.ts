@@ -9,6 +9,7 @@ import handleGuildCreate from './events/guild-create.js';
 import handleVoiceStateUpdate from './events/voice-state-update.js';
 import errorMsg from './utils/error-msg.js';
 import {isUserInVoice} from './utils/channels.js';
+import {checkAllGuilds, isBlacklisted, isOwnerInGuild, leaveIfOwnerAbsent, resolveOwnerId} from './utils/access.js';
 import Config from './services/config.js';
 import {generateDependencyReport} from '@discordjs/voice';
 import {REST} from '@discordjs/rest';
@@ -82,6 +83,28 @@ export default class {
     // eslint-disable-next-line complexity
     this.client.on('interactionCreate', async interaction => {
       try {
+        // Nur auf Servern, auf denen der Bot-Besitzer ist; sonst Server verlassen.
+        if (interaction.guild && !await isOwnerInGuild(interaction.guild)) {
+          if (interaction.isAutocomplete()) {
+            await interaction.respond([]).catch(() => undefined);
+          } else if (interaction.isRepliable()) {
+            await interaction.reply({content: errorMsg('dieser Bot funktioniert nur auf Servern seines Besitzers'), ephemeral: true}).catch(() => undefined);
+          }
+
+          await leaveIfOwnerAbsent(interaction.guild);
+          return;
+        }
+
+        if (await isBlacklisted(interaction.user.id)) {
+          if (interaction.isAutocomplete()) {
+            await interaction.respond([]);
+          } else if (interaction.isRepliable()) {
+            await interaction.reply({content: errorMsg('du bist für diesen Bot gesperrt'), ephemeral: true});
+          }
+
+          return;
+        }
+
         if (interaction.isCommand()) {
           const command = this.commandsByName.get(interaction.commandName);
 
@@ -173,8 +196,20 @@ export default class {
         return;
       }
 
+      // Server ohne den Bot-Besitzer verlassen, beim Start und danach alle 10 Minuten.
+      try {
+        const ownerId = await resolveOwnerId(this.client);
+        console.log(`Bot-Besitzer: ${ownerId}`);
+        await checkAllGuilds(this.client);
+        setInterval(() => {
+          void checkAllGuilds(this.client);
+        }, 10 * 60 * 1000);
+      } catch (error: unknown) {
+        console.error(`Besitzer-Check fehlgeschlagen: ${sanitizeErrorForLog(error)}`);
+      }
+
       // Update commands
-      const rest = new REST({version: '10'}).setToken(this.config.DISCORD_TOKEN);
+      const rest =new REST({version: '10'}).setToken(this.config.DISCORD_TOKEN);
       if (this.shouldRegisterCommandsOnBot) {
         spinner.text = '📡 updating commands on bot...';
         await rest.put(

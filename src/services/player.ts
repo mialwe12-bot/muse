@@ -191,6 +191,35 @@ export default class {
     }
   }
 
+  /** ID of the voice channel the bot is connected (or connecting) to. */
+  getVoiceChannelId(): string | undefined {
+    return this.voiceConnection?.joinConfig.channelId ?? this.pendingConnection?.channelId ?? undefined;
+  }
+
+  /** Move the existing connection to another channel; playback and queue continue. */
+  async moveTo(channel: VoiceChannel): Promise<void> {
+    if (this.pendingConnection) {
+      await this.pendingConnection.promise;
+    }
+
+    const {voiceConnection} = this;
+    if (!voiceConnection) {
+      throw new Error('Nicht mit einem Sprachkanal verbunden.');
+    }
+
+    if (voiceConnection.joinConfig.channelId === channel.id) {
+      return;
+    }
+
+    if (!voiceConnection.rejoin({channelId: channel.id, selfDeaf: false, selfMute: false})) {
+      throw new Error('Konnte nicht in deinen Sprachkanal wechseln.');
+    }
+
+    this.currentChannel = channel;
+    this.channelToSpeakingUsers.clear();
+    await this.waitForVoiceConnectionReady(voiceConnection);
+  }
+
   /** Resolve known audio while an initial voice connection becomes ready. */
   prepareAudio(song: QueuedSong): void {
     if (song.source === MediaSource.HLS || song.isLive || this.prefetchedMedia) {

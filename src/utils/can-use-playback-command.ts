@@ -6,6 +6,7 @@ import {
   Message,
   PermissionFlagsBits,
 } from 'discord.js';
+import {isBlacklisted} from './access.js';
 
 const memberAccess = (permissions: ApplicationCommandPermissions[], member: GuildMember): boolean | undefined => {
   const user = permissions.find(permission => permission.type === ApplicationCommandPermissionType.User
@@ -49,6 +50,10 @@ const mergePermissions = (
 /** Reactions are not interactions: Discord does not authorize them as commands. */
 const canUsePlaybackCommand = async (message: Message, userId: string, commandName: string): Promise<boolean> => {
   if (!message.inGuild()) {
+    return false;
+  }
+
+  if (await isBlacklisted(userId)) {
     return false;
   }
 

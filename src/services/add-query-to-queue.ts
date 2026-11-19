@@ -1,4 +1,5 @@
-import {ChatInputCommandInteraction, GuildMember, GuildTextBasedChannel, escapeMarkdown} from 'discord.js';
+import {ChannelType, ChatInputCommandInteraction, GuildMember, GuildTextBasedChannel, escapeMarkdown} from 'discord.js';
+import {getOwnerId, isOwner} from '../utils/access.js';
 import {inject, injectable} from 'inversify';
 import shuffle from 'array-shuffle';
 import uniqueSongs from '../utils/unique-songs.js';
@@ -7,7 +8,7 @@ import GetSongs from '../services/get-songs.js';
 import {MediaSource, SongMetadata, STATUS} from './player.js';
 import SessionPlayer from './session-player.js';
 import PlayerManager from '../managers/player.js';
-import {getMemberVoiceChannel, getMostPopularVoiceChannel} from '../utils/channels.js';
+import {getMemberVoiceChannel, getMostPopularVoiceChannel, getSizeWithoutBots} from '../utils/channels.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
 import {SponsorBlock} from 'sponsorblock-api';
 import Config from './config.js';
@@ -66,6 +67,24 @@ export default class AddQueryToQueue {
 
     const [targetVoiceChannel] = getMemberVoiceChannel(interaction.member as GuildMember) ?? getMostPopularVoiceChannel(interaction.guild!);
 
+    // Wollen mehrere Sprachkanäle den Bot, hat der Bot-Besitzer Vorrang. Andere
+    // dürfen ihn nur holen, wenn in seinem aktuellen Kanal niemand mehr ist.
+    const botChannelId = player.getVoiceChannelId();
+    let moveToTarget = false;
+    if (botChannelId && botChannelId !== targetVoiceChannel.id) {
+      const botChannel = interaction.guild!.channels.cache.get(botChannelId);
+      const botChannelIsEmpty = !botChannel || botChannel.type !== ChannelType.GuildVoice || getSizeWithoutBots(botChannel) === 0;
+      if (!isOwner(interaction.user.id) && !botChannelIsEmpty) {
+        const ownerId = getOwnerId();
+        const ownerThere = ownerId !== undefined && botChannel?.type === ChannelType.GuildVoice && botChannel.members.has(ownerId);
+        throw new Error(ownerThere
+          ? `ich spiele gerade für meinen Besitzer in <#${botChannelId}>. Komm dort hin, um Songs hinzuzufügen.`
+          : `ich spiele gerade in <#${botChannelId}>. Komm dort hin, um Songs hinzuzufügen.`);
+      }
+
+      moveToTarget = true;
+    }
+
     const settings = await getGuildSettings(guildId);
 
     const {playlistLimit} = settings;
@@ -98,6 +117,8 @@ export default class AddQueryToQueue {
       const connection = player.connect(targetVoiceChannel);
       player.prepareAudio(player.getCurrent() ?? queuedSongs[0]);
       await connection;
+    } else if (moveToTarget) {
+      await player.moveTo(targetVoiceChannel);
     } else {
       // Let an existing session recover without changing its channel or paused state.
       await player.ensureVoiceConnectionReady();

@@ -41,6 +41,7 @@ import Stop from './commands/stop.js';
 import Unskip from './commands/unskip.js';
 import Volume from './commands/volume.js';
 import Help from './commands/help.js';
+import Blacklist from './commands/blacklist.js';
 import ThirdParty from './services/third-party.js';
 import FileCacheProvider from './services/file-cache.js';
 import KeyValueCacheProvider from './services/key-value-cache.js';
@@ -101,6 +102,7 @@ if (config.SPOTIFY_CLIENT_ID !== '' && config.SPOTIFY_CLIENT_SECRET !== '') {
   Unskip,
   Volume,
   Help,
+  Blacklist,
 ].forEach(command => {
   container.bind<Command>(TYPES.Command).to(command).inSingletonScope();
 });
