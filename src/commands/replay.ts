@@ -4,6 +4,7 @@ import {inject, injectable} from 'inversify';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -37,6 +38,6 @@ export default class implements Command {
       interaction.deferReply(),
     ]);
 
-    await interaction.editReply('👍 Song startet von vorne');
+    await interaction.editReply({embeds: [notice('music', '⏮️ Song startet von vorne')]});
   }
 }

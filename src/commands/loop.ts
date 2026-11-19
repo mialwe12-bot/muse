@@ -5,6 +5,7 @@ import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
 import {STATUS} from '../services/player.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -34,6 +35,6 @@ export default class implements Command {
     player.loopCurrentSong = !player.loopCurrentSong;
     player.refreshPlayingMessage();
 
-    await interaction.reply((player.loopCurrentSong ? '🔂 Song wird wiederholt' : 'Song wird nicht mehr wiederholt'));
+    await interaction.reply({embeds: [notice('music', player.loopCurrentSong ? '🔂 Song wird wiederholt' : '➡️ Song wird nicht mehr wiederholt')]});
   }
 }

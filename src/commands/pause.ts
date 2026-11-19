@@ -5,6 +5,7 @@ import {inject, injectable} from 'inversify';
 import PlayerManager from '../managers/player.js';
 import {STATUS} from '../services/player.js';
 import Command from './index.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -28,6 +29,6 @@ export default class implements Command {
     }
 
     player.pause();
-    await interaction.reply('⏸️ pausiert');
+    await interaction.reply({embeds: [notice('music', '⏸️ Pausiert', 'Weiter geht es mit `/resume`.')]});
   }
 }

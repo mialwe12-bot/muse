@@ -5,6 +5,7 @@ import Command from './index.js';
 import {isOwner} from '../utils/access.js';
 import {addAdminGuild, listAdminGuilds, removeAdminGuild} from '../utils/admin-guilds.js';
 import syncGuildCommands from '../utils/sync-guild-commands.js';
+import {embedOf} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -33,7 +34,7 @@ export default class implements Command {
     }
 
     const reply = async (content: string | EmbedBuilder) => interaction.reply({
-      ...(typeof content === 'string' ? {content} : {embeds: [content]}),
+      embeds: [typeof content === 'string' ? embedOf(content) : content],
       ephemeral: true,
       allowedMentions: {parse: []},
     });

@@ -5,6 +5,7 @@ import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
 import SessionPlayer from '../services/session-player.js';
+import {textEmbed} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -28,6 +29,6 @@ export default class implements Command {
 
     await interaction.deferReply({ephemeral: true});
     const url = await this.sessionPlayer.ensureMessage(player, interaction.channel as GuildTextBasedChannel);
-    await interaction.editReply({content: `[Zum Player](${url})`, allowedMentions: {parse: []}});
+    await interaction.editReply({embeds: [textEmbed('music', `[➡️ Zum Player](${url})`, '🎵 Läuft gerade')], allowedMentions: {parse: []}});
   }
 }

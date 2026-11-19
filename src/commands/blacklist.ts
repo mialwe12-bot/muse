@@ -7,6 +7,7 @@ import {
 } from '../utils/access.js';
 import {leaveIfNotAllowed} from '../utils/licenses.js';
 import {truncate} from '../utils/string.js';
+import {embedOf} from '../utils/embeds.js';
 
 const since = (iso: string) => `<t:${Math.floor(new Date(iso).getTime() / 1000)}:d>`;
 
@@ -68,7 +69,7 @@ export default class implements Command {
     }
 
     const reply = async (content: string | EmbedBuilder) => interaction.reply({
-      ...(typeof content === 'string' ? {content} : {embeds: [content]}),
+      embeds: [typeof content === 'string' ? embedOf(content) : content],
       ephemeral: true,
       allowedMentions: {parse: []},
     });

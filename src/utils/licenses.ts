@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {DATA_DIR} from '../services/config.js';
 import {forgetGuildMembership, getGuildBlacklistEntry, type GuildBlacklistEntry, isOwner, isOwnerInGuild, notifyOwner} from './access.js';
+import {dmEmbed, toneOf} from './embeds.js';
 
 /*
  * Lizenzsystem
@@ -386,7 +387,7 @@ export const extendLicense = async (licenseId: string, {days, servers, unlimited
 const sendDm = async (client: Client, userId: string, text: string): Promise<void> => {
   try {
     const user = await client.users.fetch(userId);
-    await user.send({content: text, allowedMentions: {parse: []}});
+    await user.send({embeds: [dmEmbed(toneOf(text), text, '🔑 Deine ByteMusic-Lizenz')], allowedMentions: {parse: []}});
   } catch {
     // DMs geschlossen o. ä.: nicht weiter schlimm.
   }

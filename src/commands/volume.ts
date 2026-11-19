@@ -4,6 +4,7 @@ import {inject, injectable} from 'inversify';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -37,6 +38,6 @@ export default class implements Command {
 
     const level = interaction.options.getInteger('level') ?? 100;
     player.setVolume(level);
-    await interaction.reply(`🔉 Lautstärke auf ${level}% gesetzt`);
+    await interaction.reply({embeds: [notice('music', `${level === 0 ? '🔇' : level < 50 ? '🔉' : '🔊'} Lautstärke: ${level} %`)]});
   }
 }

@@ -2,6 +2,7 @@ import {Client, Guild} from 'discord.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {DATA_DIR} from '../services/config.js';
+import {dmEmbed, toneOf} from './embeds.js';
 
 /*
  * Zugriffsregeln für diesen Bot:
@@ -84,7 +85,7 @@ export const notifyOwner = async (client: Client, text: string): Promise<void> =
   try {
     const id = await resolveOwnerId(client);
     const user = await client.users.fetch(id);
-    await user.send({content: text.slice(0, 2000), allowedMentions: {parse: []}});
+    await user.send({embeds: [dmEmbed(toneOf(text), text)], allowedMentions: {parse: []}});
   } catch (error: unknown) {
     console.warn(`Konnte dem Bot-Besitzer keine Nachricht schicken: ${String((error as Error).message ?? error)}`);
   }

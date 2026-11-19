@@ -7,7 +7,6 @@ import Command from './commands/index.js';
 import debug from './utils/debug.js';
 import handleGuildCreate from './events/guild-create.js';
 import handleVoiceStateUpdate from './events/voice-state-update.js';
-import errorMsg from './utils/error-msg.js';
 import {isUserInVoice} from './utils/channels.js';
 import {isBlacklisted, resolveOwnerId} from './utils/access.js';
 import {isAdminGuild} from './utils/admin-guilds.js';
@@ -21,6 +20,7 @@ import registerCommandsOnGuild from './utils/register-commands-on-guild.js';
 import {BOT_INVITE_PERMISSIONS} from './utils/constants.js';
 import type SessionPlayer from './services/session-player.js';
 import {SESSION_BUTTON_PREFIX} from './utils/build-session-message.js';
+import {errorEmbed} from './utils/embeds.js';
 
 const sanitizeErrorDetail = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -100,7 +100,7 @@ export default class {
             if (interaction.isAutocomplete()) {
               await interaction.respond([]).catch(() => undefined);
             } else if (interaction.isRepliable()) {
-              await interaction.reply({content: errorMsg(message), ephemeral: true}).catch(() => undefined);
+              await interaction.reply({embeds: [errorEmbed(message)], ephemeral: true}).catch(() => undefined);
             }
 
             if (state.kind === 'denied' || state.kind === 'blocked') {
@@ -115,7 +115,7 @@ export default class {
           if (interaction.isAutocomplete()) {
             await interaction.respond([]);
           } else if (interaction.isRepliable()) {
-            await interaction.reply({content: errorMsg('du bist für diesen Bot gesperrt'), ephemeral: true});
+            await interaction.reply({embeds: [errorEmbed('du bist für diesen Bot gesperrt')], ephemeral: true});
           }
 
           return;
@@ -129,13 +129,13 @@ export default class {
           }
 
           if (!interaction.guild) {
-            await interaction.reply(errorMsg('den Bot kannst du nicht in Direktnachrichten benutzen'));
+            await interaction.reply({embeds: [errorEmbed('den Bot kannst du nicht in Direktnachrichten benutzen')]});
             return;
           }
 
           const requiresVC = command.requiresVC instanceof Function ? command.requiresVC(interaction) : command.requiresVC;
           if (requiresVC && interaction.member && !isUserInVoice(interaction.guild, interaction.member.user as User)) {
-            await interaction.reply({content: errorMsg('du musst in einem Sprachkanal sein'), ephemeral: true});
+            await interaction.reply({embeds: [errorEmbed('du musst in einem Sprachkanal sein')], ephemeral: true});
             return;
           }
 
@@ -182,9 +182,9 @@ export default class {
         // This can fail if the message was deleted, and we don't want to crash the whole bot
         try {
           if ((interaction.isCommand() || interaction.isButton()) && (interaction.replied || interaction.deferred)) {
-            await interaction.editReply(errorMsg(userSafeError));
+            await interaction.editReply({content: '', embeds: [errorEmbed(userSafeError)]});
           } else if (interaction.isCommand() || interaction.isButton()) {
-            await interaction.reply({content: errorMsg(userSafeError), ephemeral: true});
+            await interaction.reply({embeds: [errorEmbed(userSafeError)], ephemeral: true});
           }
         } catch {}
       }

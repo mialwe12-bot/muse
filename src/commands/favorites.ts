@@ -7,6 +7,7 @@ import {TYPES} from '../types.js';
 import {prisma} from '../utils/db.js';
 import {Pagination} from 'pagination.djs';
 import {truncate} from '../utils/string.js';
+import {notice} from '../utils/embeds.js';
 
 const MAX_NAME_LENGTH = 100;
 
@@ -147,7 +148,7 @@ export default class implements Command {
     });
 
     if (favorites.length === 0) {
-      await interaction.reply('es gibt noch keine Favoriten');
+      await interaction.reply({embeds: [notice('info', '⭐ Noch keine Favoriten', 'Lege einen an mit `/favorites create`.')]});
       return;
     }
 
@@ -205,7 +206,7 @@ export default class implements Command {
       },
     });
 
-    await interaction.reply('👍 Favorit gespeichert');
+    await interaction.reply({embeds: [notice('success', '⭐ Favorit gespeichert', 'Abspielen mit `/favorites use`.')]});
   }
 
   private async remove(interaction: ChatInputCommandInteraction) {
@@ -228,6 +229,6 @@ export default class implements Command {
 
     await prisma.favoriteQuery.delete({where: {id: favorite.id}});
 
-    await interaction.reply('👍 Favorit gelöscht');
+    await interaction.reply({embeds: [notice('success', '🗑️ Favorit gelöscht')]});
   }
 }

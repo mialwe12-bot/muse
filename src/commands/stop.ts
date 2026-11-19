@@ -4,6 +4,7 @@ import {TYPES} from '../types.js';
 import {inject, injectable} from 'inversify';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -27,6 +28,6 @@ export default class implements Command {
     }
 
     player.stop();
-    await interaction.reply('⏹️ alles klar, gestoppt');
+    await interaction.reply({embeds: [notice('music', '⏹️ Gestoppt', 'Die Warteschlange wurde geleert.')]});
   }
 }

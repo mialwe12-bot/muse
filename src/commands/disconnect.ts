@@ -4,6 +4,7 @@ import {TYPES} from '../types.js';
 import {inject, injectable} from 'inversify';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -28,6 +29,6 @@ export default class implements Command {
 
     player.disconnect();
 
-    await interaction.reply('👋 alles klar, Verbindung getrennt');
+    await interaction.reply({embeds: [notice('info', '👋 Verbindung getrennt')]});
   }
 }

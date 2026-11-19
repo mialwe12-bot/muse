@@ -11,6 +11,7 @@ import SessionHistoryPublisher from './session-history-publisher.js';
 import canUsePlaybackCommand from '../utils/can-use-playback-command.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
 import {buildHistoryMessages, buildMoreMessage, buildQueueMessage, buildSessionMessage, buildSessionMessages, SESSION_BUTTON_PREFIX} from '../utils/build-session-message.js';
+import {notice} from '../utils/embeds.js';
 
 const isMissingMessage = (error: unknown): boolean => Boolean(error && typeof error === 'object' && 'code' in error && error.code === 10008);
 const playbackCommands: Record<string, string> = {
@@ -273,7 +274,7 @@ export default class SessionPlayer {
     const page = Number(rawPage);
     if (parts.length !== 3 || !/^[\da-f-]{36}$/i.test(sessionId) || !Number.isSafeInteger(page) || page < 0
       || !interaction.guild || !['history', 'queue', 'more', ...Object.keys(playbackCommands)].includes(action)) {
-      await interaction.editReply('Diese Steuerung ist nicht mehr verfügbar.');
+      await interaction.editReply({embeds: [notice('warn', 'Diese Steuerung ist nicht mehr verfügbar.')]});
       return;
     }
 
@@ -281,7 +282,7 @@ export default class SessionPlayer {
     await existingPlayer?.listeningSession?.flush();
     const session = await this.store.load(sessionId, interaction.guild.id);
     if (!session || !await this.canReadSession(interaction, session)) {
-      await interaction.editReply('Diese Hör-Session ist in diesem Kanal nicht verfügbar.');
+      await interaction.editReply({embeds: [notice('warn', 'Diese Hör-Session ist in diesem Kanal nicht verfügbar.')]});
       return;
     }
 
@@ -298,7 +299,7 @@ export default class SessionPlayer {
     }
 
     if (!interaction.message.flags.has(MessageFlags.Ephemeral) && interaction.message.id !== session.messageId) {
-      await interaction.editReply('Der Player ist umgezogen. Nutze die Steuerung der neuesten Nachricht.');
+      await interaction.editReply({embeds: [notice('warn', 'Der Player ist umgezogen. Nutze die Steuerung der neuesten Nachricht.')]});
       return;
     }
 
@@ -306,12 +307,12 @@ export default class SessionPlayer {
       ? (await getGuildSettings(interaction.guild.id)).defaultQueuePageSize : undefined;
     const player = this.currentPlayer(session);
     if (!player) {
-      await interaction.editReply('Diese Hör-Session ist beendet. Der Verlauf ist noch verfügbar.');
+      await interaction.editReply({embeds: [notice('warn', 'Diese Hör-Session ist beendet. Der Verlauf ist noch verfügbar.')]});
       return;
     }
 
     if (action === 'queue' && !player.getCurrent()) {
-      await interaction.editReply('Die Warteschlange ist leer.');
+      await interaction.editReply({embeds: [notice('warn', 'Die Warteschlange ist leer.')]});
       return;
     }
 
@@ -327,13 +328,13 @@ export default class SessionPlayer {
     const {guild} = interaction;
     const active = this.currentPlayer(session);
     if (!guild || !active || !session.messageId || !session.channelId) {
-      await interaction.editReply('Diese Hör-Session ist beendet.');
+      await interaction.editReply({embeds: [notice('warn', 'Diese Hör-Session ist beendet.')]});
       return;
     }
 
     const channel = await guild.channels.fetch(session.channelId, {force: true});
     if (!channel?.isTextBased()) {
-      await interaction.editReply('Auf den Player-Kanal habe ich keinen Zugriff mehr.');
+      await interaction.editReply({embeds: [notice('warn', 'Auf den Player-Kanal habe ich keinen Zugriff mehr.')]});
       return;
     }
 
@@ -346,12 +347,12 @@ export default class SessionPlayer {
       }
 
       if (this.currentPlayer(session) !== active) {
-        await interaction.editReply('Diese Hör-Session ist beendet.');
+        await interaction.editReply({embeds: [notice('warn', 'Diese Hör-Session ist beendet.')]});
         return;
       }
 
       await this.ensureMessage(active, channel, session.id);
-      await interaction.editReply('Die Player-Karte wurde ersetzt. Nutze die neue Steuerung.');
+      await interaction.editReply({embeds: [notice('warn', 'Die Player-Karte wurde ersetzt. Nutze die neue Steuerung.')]});
       return;
     }
 
@@ -362,7 +363,7 @@ export default class SessionPlayer {
       && Boolean(active.voiceConnection?.joinConfig.channelId);
     const command = playbackCommands[action];
     if (!canControl() || !await canUsePlaybackCommand(card, interaction.user.id, command) || !canControl()) {
-      await interaction.editReply('Geh in den Sprachkanal des Bots und prüfe, ob du diesen Befehl benutzen darfst.');
+      await interaction.editReply({embeds: [notice('warn', 'Geh in den Sprachkanal des Bots und prüfe, ob du diesen Befehl benutzen darfst.')]});
       return;
     }
 

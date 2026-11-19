@@ -4,6 +4,7 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 import {TYPES} from '../types.js';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -22,6 +23,6 @@ export default class implements Command {
   public async execute(interaction: ChatInputCommandInteraction) {
     this.playerManager.get(interaction.guild!.id).clear();
 
-    await interaction.reply('🧹 Warteschlange geleert');
+    await interaction.reply({embeds: [notice('success', '🧹 Warteschlange geleert')]});
   }
 }

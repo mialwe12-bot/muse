@@ -6,6 +6,7 @@ import Command from './index.js';
 import {parseTime, prettyTime} from '../utils/time.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
 import durationStringToSeconds from '../utils/duration-string-to-seconds.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -66,6 +67,6 @@ export default class implements Command {
       interaction.deferReply(),
     ]);
 
-    await interaction.editReply(`👍 gespult zu ${prettyTime(player.getPosition())}`);
+    await interaction.editReply({embeds: [notice('music', `⏩ Gespult zu ${prettyTime(player.getPosition())}`)]});
   }
 }

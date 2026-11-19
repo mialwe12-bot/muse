@@ -5,6 +5,7 @@ import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
 import {buildPlayingMessageEmbed} from '../utils/build-embed.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -27,8 +28,7 @@ export default class implements Command {
     try {
       await player.back();
       await interaction.followUp({
-        content: '⏮️ ein Song zurück',
-        embeds: player.getCurrent() ? [buildPlayingMessageEmbed(player)] : [],
+        embeds: [notice('music', '⏮️ Ein Song zurück'), ...(player.getCurrent() ? [buildPlayingMessageEmbed(player)] : [])],
       });
       await interaction.deleteReply().catch(() => undefined);
     } catch (error: unknown) {

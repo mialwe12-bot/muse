@@ -5,6 +5,7 @@ import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
 import formatSongReply from '../utils/format-song-reply.js';
+import {textEmbed} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -43,6 +44,6 @@ export default class implements Command {
 
     const {title} = player.move(from, to);
 
-    await interaction.reply(formatSongReply(title, '**', '** auf Position **' + String(to) + '** verschoben'));
+    await interaction.reply({embeds: [textEmbed('music', formatSongReply(title, '**', `** ist jetzt auf Position **${to}**`), '↕️ Song verschoben')], allowedMentions: {parse: []}});
   }
 }

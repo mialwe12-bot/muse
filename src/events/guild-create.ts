@@ -10,6 +10,7 @@ import registerCommandsOnGuild from '../utils/register-commands-on-guild.js';
 import {admitNewGuild, leaveIfNotAllowed} from '../utils/licenses.js';
 import {notifyOwner} from '../utils/access.js';
 import {isAdminGuild} from '../utils/admin-guilds.js';
+import {dmEmbed} from '../utils/embeds.js';
 
 export async function createGuildSettings(guildId: string): Promise<Setting> {
   return prisma.setting.upsert({
@@ -64,9 +65,18 @@ export default async (guild: Guild): Promise<void> => {
 
   const owner = await guild.fetchOwner();
   if (state.kind === 'grace') {
-    await owner.send(`👋 Hi! Ich wurde gerade auf deinen Server **${guild.name}** eingeladen. Der Server ist aber nicht lizenziert. Wer eine Lizenz hat, kann ihn dort mit \`/license activate\` (oder einen Schlüssel mit \`/license redeem\`) freischalten. Sonst verlasse ich den Server <t:${Math.floor(state.until.getTime() / 1000)}:R>.`).catch(() => undefined);
+    await owner.send({embeds: [dmEmbed('warn', `Ich wurde gerade auf deinen Server **${guild.name}** eingeladen, aber der Server ist nicht lizenziert.
+
+Wer eine Lizenz hat, schaltet ihn dort mit \`/license activate\` frei (oder löst einen Schlüssel mit \`/license redeem\` ein). Sonst verlasse ich den Server <t:${Math.floor(state.until.getTime() / 1000)}:R>.`, '👋 Hi! Lizenz benötigt')]}).catch(() => undefined);
     return;
   }
 
-  await owner.send(`👋 Hi! Jemand (wahrscheinlich du) hat mich gerade auf einen deiner Server eingeladen${state.kind === 'licensed' ? ' – er wurde automatisch mit deiner Lizenz freigeschaltet' : ''}. Ich bin **ByteMusic**, dein Musik-Bot – leg los mit \`/play\` und schau dir mit \`/help\` alle Befehle an. Standardmäßig können mich alle Mitglieder in allen Kanälen benutzen. Einschränken kannst du das unter Servereinstellungen → Integrationen → ByteMusic.`).catch(() => undefined);
+  await owner.send({embeds: [dmEmbed('music', [
+    `Jemand (wahrscheinlich du) hat mich gerade auf **${guild.name}** eingeladen${state.kind === 'licensed' ? ', und der Server wurde automatisch mit deiner Lizenz freigeschaltet' : ''}.`,
+    '',
+    '🎵 Leg los mit `/play` – YouTube, Spotify, SoundCloud und Jellyfin gehen.',
+    '📖 Alle Befehle zeigt `/help`.',
+    '',
+    'Standardmäßig können mich alle Mitglieder in allen Kanälen benutzen. Einschränken kannst du das unter Servereinstellungen → Integrationen → ByteMusic.',
+  ].join('\n'), '👋 Hi! Ich bin ByteMusic')]}).catch(() => undefined);
 };

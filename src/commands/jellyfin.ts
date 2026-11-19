@@ -4,6 +4,7 @@ import {SlashCommandBuilder} from '@discordjs/builders';
 import Command from './index.js';
 import {isOwner} from '../utils/access.js';
 import {addJellyfinServer, listJellyfinServers, removeJellyfinServer} from '../utils/jellyfin.js';
+import {notice, textEmbed} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -36,13 +37,13 @@ export default class implements Command {
       case 'add': {
         await interaction.deferReply({ephemeral: true});
         const server = await addJellyfinServer(interaction.options.getString('url', true).trim(), interaction.options.getString('key', true).trim());
-        await interaction.editReply(`✅ Jellyfin-Server **${server.name}** (${server.base}) hinterlegt. Links aus der Weboberfläche funktionieren jetzt mit \`/play\`.`);
+        await interaction.editReply({embeds: [textEmbed('success', `**${server.name}** (${server.base})\nLinks aus der Weboberfläche funktionieren jetzt mit \`/play\`.`, '✅ Jellyfin-Server hinterlegt')]});
         break;
       }
 
       case 'remove': {
         const removed = await removeJellyfinServer(interaction.options.getString('url', true).trim());
-        await interaction.reply({content: removed ? '🗑️ Jellyfin-Server entfernt.' : 'Dieser Server war nicht hinterlegt.', ephemeral: true});
+        await interaction.reply({embeds: [removed ? notice('success', '🗑️ Jellyfin-Server entfernt') : notice('warn', 'Dieser Server war nicht hinterlegt')], ephemeral: true});
         break;
       }
 

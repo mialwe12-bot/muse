@@ -4,6 +4,7 @@ import {inject, injectable} from 'inversify';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {SlashCommandBuilder} from '@discordjs/builders';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -35,7 +36,7 @@ export default class implements Command {
 
     try {
       await player.forward(numToSkip);
-      await interaction.editReply(player.getCurrent() ? '⏭️ übersprungen' : 'Warteschlange zu Ende.');
+      await interaction.editReply({embeds: [player.getCurrent() ? notice('music', '⏭️ Übersprungen') : notice('info', '🏁 Warteschlange zu Ende')]});
     } catch (error: unknown) {
       if (error instanceof Error && error.message === 'No songs in queue to forward to.') {
         throw new Error('kein Song zum Überspringen da');

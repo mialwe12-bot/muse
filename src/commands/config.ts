@@ -4,6 +4,7 @@ import {injectable} from 'inversify';
 import {prisma} from '../utils/db.js';
 import Command from './index.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
+import {notice} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -99,7 +100,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Limit geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Playlist-Limit** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -116,7 +117,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Wartezeit geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Wartezeit** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -133,7 +134,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Verlassen-Einstellung geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Verlassen ohne Zuhörer** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -150,7 +151,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Ankündigungs-Einstellung geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Ankündigungen** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -167,7 +168,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Lautstärke-Einstellung geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Standard-Lautstärke** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -184,7 +185,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Standard-Seitengröße geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Seitengröße der Warteschlange** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -201,7 +202,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Absenk-Einstellung geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Absenken bei Sprache** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }
@@ -218,7 +219,7 @@ export default class implements Command {
           },
         });
 
-        await interaction.reply('👍 Ziel-Lautstärke beim Absenken geändert');
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Ziel-Lautstärke beim Absenken** wurde geändert. Alle Einstellungen siehst du mit `/config get`.')]});
 
         break;
       }

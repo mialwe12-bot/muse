@@ -8,6 +8,7 @@ import {
   isExpired, leaveGuild, licensesOf, listKeys, listLicenses, redeemKey, revokeLicenses, type License,
 } from '../utils/licenses.js';
 import {truncate} from '../utils/string.js';
+import {embedOf} from '../utils/embeds.js';
 
 const timestamp = (iso: string, style = 'd') => `<t:${Math.floor(new Date(iso).getTime() / 1000)}:${style}>`;
 const validity = (license: License) => license.expiresAt === null
@@ -49,7 +50,7 @@ export const executeLicense = async (interaction: ChatInputCommandInteraction): 
     }
 
     const reply = async (content: string | EmbedBuilder) => interaction.reply({
-      ...(typeof content === 'string' ? {content} : {embeds: [content]}),
+      embeds: [typeof content === 'string' ? embedOf(content) : content],
       ephemeral: true,
       allowedMentions: {parse: []},
     });

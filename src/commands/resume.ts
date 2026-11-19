@@ -7,6 +7,7 @@ import {STATUS} from '../services/player.js';
 import SessionPlayer from '../services/session-player.js';
 import {getMemberVoiceChannel, getMostPopularVoiceChannel} from '../utils/channels.js';
 import {ChatInputCommandInteraction, GuildMember, GuildTextBasedChannel} from 'discord.js';
+import {textEmbed} from '../utils/embeds.js';
 
 @injectable()
 export default class implements Command {
@@ -48,6 +49,6 @@ export default class implements Command {
     }
 
     const url = await this.sessionPlayer.ensureMessage(player, interaction.channel as GuildTextBasedChannel);
-    await interaction.editReply({content: `▶️ Wiedergabe fortgesetzt. [Zum Player](${url})`, allowedMentions: {parse: []}});
+    await interaction.editReply({embeds: [textEmbed('music', `[➡️ Zum Player](${url})`, '▶️ Wiedergabe fortgesetzt')], allowedMentions: {parse: []}});
   }
 }
