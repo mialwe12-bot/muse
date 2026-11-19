@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {DATA_DIR} from '../services/config.js';
-import {forgetGuildMembership, isOwner, isOwnerInGuild} from './access.js';
+import {forgetGuildMembership, getGuildBlacklistEntry, type GuildBlacklistEntry, isOwner, isOwnerInGuild, notifyOwner} from './access.js';
 
 /*
  * Lizenzsystem
@@ -26,7 +26,11 @@ export type License = {
   note: string;
   createdAt: string;
   source: 'give' | 'key';
+  remindedAt?: string | null; // Erinnerung vor Ablauf verschickt
+  expiredNotifiedAt?: string | null; // Ablauf gemeldet
 };
+
+export const REMINDER_DAYS = 3;
 
 export type LicenseKey = {
   key: string;
@@ -236,9 +240,14 @@ export const deactivateGuild = async (guildId: string): Promise<Activation | und
 // ---------------------------------------------------------------------------
 // Server-Zugang
 
-export type GuildState = {kind: 'owner'} | {kind: 'licensed'; activation: Activation} | {kind: 'grace'; until: Date} | {kind: 'denied'};
+export type GuildState = {kind: 'blocked'; entry: GuildBlacklistEntry} | {kind: 'owner'} | {kind: 'licensed'; activation: Activation} | {kind: 'grace'; until: Date} | {kind: 'denied'};
 
 export const getGuildState = async (guild: Guild, force = false): Promise<GuildState> => {
+  const blocked = await getGuildBlacklistEntry(guild.id);
+  if (blocked) {
+    return {kind: 'blocked', entry: blocked};
+  }
+
   if (await isOwnerInGuild(guild, force)) {
     return {kind: 'owner'};
   }
@@ -264,18 +273,29 @@ export const startGrace = async (guildId: string): Promise<Date> => {
   return until;
 };
 
+// Server, die der Bot selbst verlässt (damit guildDelete sie nicht doppelt meldet).
+export const ownLeaves = new Set<string>();
+
 export const leaveGuild = async (guild: Guild, reason: string): Promise<void> => {
   console.warn(`Verlasse Server ${guild.name} (${guild.id}): ${reason}`);
   const data = await load();
   delete data.pending[guild.id];
   await save();
   forgetGuildMembership(guild.id);
+  ownLeaves.add(guild.id);
   await guild.leave();
+  await notifyOwner(guild.client, `👋 Ich habe den Server **${guild.name}** (\`${guild.id}\`) verlassen: ${reason}.`);
 };
 
 /** Leaves the guild if it is neither the owner's, licensed, nor in its grace period. */
 export const leaveIfNotAllowed = async (guild: Guild, force = false): Promise<boolean> => {
   const state = await getGuildState(guild, force);
+  if (state.kind === 'blocked') {
+    await deactivateGuild(guild.id);
+    await leaveGuild(guild, `Server ist gesperrt${state.entry.reason ? ` (${state.entry.reason})` : ''}`);
+    return true;
+  }
+
   if (state.kind !== 'denied') {
     return false;
   }
@@ -285,6 +305,12 @@ export const leaveIfNotAllowed = async (guild: Guild, force = false): Promise<bo
 };
 
 export const checkAllGuilds = async (client: Client): Promise<void> => {
+  try {
+    await processLicenseNotices(client);
+  } catch (error: unknown) {
+    console.error('Lizenz-Benachrichtigungen fehlgeschlagen:', error);
+  }
+
   for (const guild of client.guilds.cache.values()) {
     try {
       // eslint-disable-next-line no-await-in-loop
@@ -305,6 +331,8 @@ export const admitNewGuild = async (guild: Guild): Promise<GuildState> => {
     return state;
   }
 
+  // Ein gesperrter Server-Besitzer bekommt keine automatische Freischaltung.
+
   if (!isOwner(guild.ownerId)) {
     const result = await activateGuild(guild, guild.ownerId);
     if (result.ok) {
@@ -313,4 +341,90 @@ export const admitNewGuild = async (guild: Guild): Promise<GuildState> => {
   }
 
   return {kind: 'grace', until: await startGrace(guild.id)};
+};
+
+// ---------------------------------------------------------------------------
+// Verlängern und Benachrichtigungen
+
+/**
+ * Extends a license: `days` adds days (from its end, or from now if expired),
+ * `unlimited` removes the expiry, `servers` sets a new total. If the new total
+ * is below the number of used servers, the newest activations are dropped.
+ */
+export const extendLicense = async (licenseId: string, {days, servers, unlimited}: {days?: number | null; servers?: number | null; unlimited?: boolean | null}): Promise<{license: License; dropped: Activation[]} | null> => {
+  const data = await load();
+  const license = data.licenses.find(candidate => candidate.id === licenseId.trim().toUpperCase());
+  if (!license) {
+    return null;
+  }
+
+  if (unlimited) {
+    license.expiresAt = null;
+  } else if (days) {
+    const base = license.expiresAt === null ? null : Math.max(Date.now(), new Date(license.expiresAt).getTime());
+    if (base !== null) {
+      license.expiresAt = new Date(base + (days * 24 * 60 * 60 * 1000)).toISOString();
+    }
+  }
+
+  let dropped: Activation[] = [];
+  if (servers) {
+    license.maxServers = servers;
+    const used = data.activations
+      .filter(activation => activation.licenseId === license.id)
+      .sort((a, b) => new Date(a.activatedAt).getTime() - new Date(b.activatedAt).getTime());
+    dropped = used.slice(servers);
+    data.activations = data.activations.filter(activation => !dropped.includes(activation));
+  }
+
+  license.remindedAt = null;
+  license.expiredNotifiedAt = null;
+  await save();
+  return {license, dropped};
+};
+
+const sendDm = async (client: Client, userId: string, text: string): Promise<void> => {
+  try {
+    const user = await client.users.fetch(userId);
+    await user.send({content: text, allowedMentions: {parse: []}});
+  } catch {
+    // DMs geschlossen o. ä.: nicht weiter schlimm.
+  }
+};
+
+/** Reminds license holders before expiry and reports expired licenses. */
+export const processLicenseNotices = async (client: Client): Promise<void> => {
+  const data = await load();
+  const now = Date.now();
+  let changed = false;
+
+  for (const license of data.licenses) {
+    if (license.expiresAt === null) {
+      continue;
+    }
+
+    const end = new Date(license.expiresAt).getTime();
+    const ts = `<t:${Math.floor(end / 1000)}:R>`;
+    const servers = data.activations.filter(activation => activation.licenseId === license.id).map(activation => activation.guildName);
+
+    if (end <= now) {
+      if (!license.expiredNotifiedAt) {
+        license.expiredNotifiedAt = new Date().toISOString();
+        changed = true;
+        // eslint-disable-next-line no-await-in-loop
+        await sendDm(client, license.userId, `⌛ Deine ByteMusic-Lizenz \`${license.id}\` ist abgelaufen. Server ohne andere Lizenz verlasse ich jetzt${servers.length > 0 ? ` (${servers.join(', ')})` : ''}.`);
+        // eslint-disable-next-line no-await-in-loop
+        await notifyOwner(client, `⌛ Lizenz \`${license.id}\` von <@${license.userId}> ist abgelaufen${servers.length > 0 ? ` (Server: ${servers.join(', ')})` : ''}.`);
+      }
+    } else if (end - now <= REMINDER_DAYS * 24 * 60 * 60 * 1000 && !license.remindedAt) {
+      license.remindedAt = new Date().toISOString();
+      changed = true;
+      // eslint-disable-next-line no-await-in-loop
+      await sendDm(client, license.userId, `⏰ Deine ByteMusic-Lizenz \`${license.id}\` läuft ${ts} ab${servers.length > 0 ? ` (Server: ${servers.join(', ')})` : ''}. Danach verlasse ich diese Server. Melde dich beim Bot-Besitzer, wenn du verlängern möchtest.`);
+    }
+  }
+
+  if (changed) {
+    await save();
+  }
 };

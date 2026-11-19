@@ -2,9 +2,9 @@ import {ChatInputCommandInteraction, EmbedBuilder} from 'discord.js';
 import {injectable} from 'inversify';
 import {SlashCommandBuilder} from '@discordjs/builders';
 import Command from './index.js';
-import {isOwner} from '../utils/access.js';
+import {isOwner, notifyOwner} from '../utils/access.js';
 import {
-  activateGuild, checkAllGuilds, createKey, deactivateGuild, deleteKey, getGuildState, giveLicense,
+  activateGuild, checkAllGuilds, createKey, deactivateGuild, deleteKey, extendLicense, getGuildState, giveLicense,
   isExpired, leaveGuild, licensesOf, listKeys, listLicenses, redeemKey, revokeLicenses, type License,
 } from '../utils/licenses.js';
 import {truncate} from '../utils/string.js';
@@ -62,11 +62,18 @@ export default class implements Command {
     .addSubcommand(sub => sub
       .setName('delete-key')
       .setDescription('Lizenzschlüssel löschen (nur Bot-Besitzer)')
-      .addStringOption(option => option.setName('key').setDescription('Lizenzschlüssel').setRequired(true)));
+      .addStringOption(option => option.setName('key').setDescription('Lizenzschlüssel').setRequired(true)))
+    .addSubcommand(sub => sub
+      .setName('extend')
+      .setDescription('Lizenz verlängern oder Server-Anzahl ändern (nur Bot-Besitzer)')
+      .addStringOption(option => option.setName('id').setDescription('Lizenz-ID, z. B. L-ABC123').setRequired(true))
+      .addIntegerOption(option => option.setName('tage').setDescription('so viele Tage verlängern').setMinValue(1).setMaxValue(36500))
+      .addIntegerOption(option => option.setName('servers').setDescription('neue Gesamtzahl an Servern').setMinValue(1).setMaxValue(1000))
+      .addBooleanOption(option => option.setName('unbegrenzt').setDescription('Ablaufdatum entfernen')));
 
   public async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     const subcommand = interaction.options.getSubcommand();
-    const ownerOnly = ['give', 'key', 'revoke', 'list', 'keys', 'delete-key'];
+    const ownerOnly = ['give', 'key', 'revoke', 'list', 'keys', 'delete-key', 'extend'];
     if (ownerOnly.includes(subcommand) && !isOwner(interaction.user.id)) {
       throw new Error('das darf nur der Bot-Besitzer');
     }
@@ -85,6 +92,7 @@ export default class implements Command {
           licensed: state.kind === 'licensed' ? `✅ Dieser Server ist mit der Lizenz von <@${state.activation.userId}> freigeschaltet.` : '',
           grace: state.kind === 'grace' ? `⏳ Dieser Server ist nicht lizenziert. Ich verlasse ihn ${timestamp(state.until.toISOString(), 'R')}, wenn niemand \`/license activate\` ausführt.` : '',
           denied: '⛔ Dieser Server ist nicht lizenziert.',
+          blocked: '⛔ Dieser Server ist gesperrt.',
         }[state.kind];
 
         const own = await licensesOf(interaction.user.id);
@@ -143,6 +151,7 @@ export default class implements Command {
           }
         }
 
+        await notifyOwner(interaction.client, `🔑 <@${interaction.user.id}> (${interaction.user.tag}) hat einen Schlüssel eingelöst: Lizenz \`${license.id}\`, ${license.maxServers} Server, ${license.expiresAt ? `bis <t:${Math.floor(new Date(license.expiresAt).getTime() / 1000)}:d>` : 'unbegrenzt'}${extra ? `, Server **${interaction.guild!.name}** freigeschaltet` : ''}.`);
         await reply(`🎉 Lizenz \`${license.id}\` eingelöst: ${license.maxServers} Server, ${validity(license)}.${extra}\nWeitere Server schaltest du dort mit \`/license activate\` frei.`);
         break;
       }
@@ -223,6 +232,30 @@ export default class implements Command {
         }
 
         await reply('🗑️ Schlüssel gelöscht.');
+        break;
+      }
+
+      case 'extend': {
+        const days = interaction.options.getInteger('tage');
+        const servers = interaction.options.getInteger('servers');
+        const unlimited = interaction.options.getBoolean('unbegrenzt');
+        if (!days && !servers && !unlimited) {
+          throw new Error('gib tage, servers oder unbegrenzt an');
+        }
+
+        const result = await extendLicense(interaction.options.getString('id', true), {days, servers, unlimited});
+        if (!result) {
+          throw new Error('diese Lizenz gibt es nicht');
+        }
+
+        const {license, dropped} = result;
+        const droppedText = dropped.length > 0 ? `
+Zu viele Server aktiv, entfernt (Bot verlässt sie): ${dropped.map(activation => activation.guildName).join(', ')}` : '';
+        await reply(`✅ Lizenz \`${license.id}\` von <@${license.userId}>: ${license.maxServers} Server, ${validity(license)}.${droppedText}`);
+        if (dropped.length > 0) {
+          await checkAllGuilds(interaction.client);
+        }
+
         break;
       }
 

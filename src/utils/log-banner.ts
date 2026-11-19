@@ -1,17 +1,23 @@
-import {makeLines} from 'nodesplash';
+import fs from 'node:fs';
 import {readPackageSync} from 'read-pkg';
 
+const deployedCommit = () => {
+  try {
+    return fs.readFileSync('.deployed-commit', 'utf8').trim();
+  } catch {
+    return undefined;
+  }
+};
+
 const logBanner = () => {
-  console.log(makeLines({
-    user: 'codetheweb',
-    repository: 'muse',
-    version: readPackageSync().version,
-    paypalUser: 'codetheweb',
-    githubSponsor: 'codetheweb',
-    madeByPrefix: 'Made with 🎶 by ',
-    buildDate: process.env.BUILD_DATE ? new Date(process.env.BUILD_DATE) : undefined,
-    commit: process.env.COMMIT_HASH ?? 'unknown',
-  }).join('\n'));
+  const {version} = readPackageSync();
+  console.log([
+    '========================================',
+    '=============== ByteMusic ==============',
+    '========================================',
+    `basiert auf Muse ${version} von codetheweb (MIT-Lizenz)`,
+    `Commit: ${process.env.COMMIT_HASH ?? deployedCommit() ?? 'unbekannt'}`,
+  ].join('\n'));
   console.log('\n');
 };
 

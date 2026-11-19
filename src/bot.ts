@@ -10,7 +10,8 @@ import handleVoiceStateUpdate from './events/voice-state-update.js';
 import errorMsg from './utils/error-msg.js';
 import {isUserInVoice} from './utils/channels.js';
 import {isBlacklisted, resolveOwnerId} from './utils/access.js';
-import {checkAllGuilds, getGuildState, leaveGuild} from './utils/licenses.js';
+import {checkAllGuilds, getGuildState, leaveIfNotAllowed, ownLeaves} from './utils/licenses.js';
+import {notifyOwner} from './utils/access.js';
 import Config from './services/config.js';
 import {generateDependencyReport} from '@discordjs/voice';
 import {REST} from '@discordjs/rest';
@@ -89,18 +90,20 @@ export default class {
         if (interaction.guild) {
           const state = await getGuildState(interaction.guild);
           const isLicenseCommand = interaction.isChatInputCommand() && interaction.commandName === 'license';
-          if (state.kind === 'denied' || (state.kind === 'grace' && !isLicenseCommand)) {
+          if (state.kind === 'denied' || state.kind === 'blocked' || (state.kind === 'grace' && !isLicenseCommand)) {
             const message = state.kind === 'grace'
               ? `dieser Server ist nicht lizenziert. Wer eine Lizenz hat, kann ihn mit \`/license activate\` (oder \`/license redeem\`) freischalten, sonst verlasse ich ihn <t:${Math.floor(state.until.getTime() / 1000)}:R>.`
-              : 'dieser Server ist nicht lizenziert, deshalb verlasse ich ihn.';
+              : state.kind === 'blocked'
+                ? 'dieser Server ist für den Bot gesperrt, deshalb verlasse ich ihn.'
+                : 'dieser Server ist nicht lizenziert, deshalb verlasse ich ihn.';
             if (interaction.isAutocomplete()) {
               await interaction.respond([]).catch(() => undefined);
             } else if (interaction.isRepliable()) {
               await interaction.reply({content: errorMsg(message), ephemeral: true}).catch(() => undefined);
             }
 
-            if (state.kind === 'denied') {
-              await leaveGuild(interaction.guild, 'weder Bot-Besitzer noch gültige Lizenz');
+            if (state.kind === 'denied' || state.kind === 'blocked') {
+              await leaveIfNotAllowed(interaction.guild);
             }
 
             return;
@@ -255,6 +258,13 @@ export default class {
     this.client.on('debug', debug);
 
     this.client.on('guildCreate', handleGuildCreate);
+    this.client.on('guildDelete', async guild => {
+      if (ownLeaves.delete(guild.id) || !guild.available) {
+        return;
+      }
+
+      await notifyOwner(this.client, `🚪 Ich wurde vom Server **${guild.name}** (\`${guild.id}\`) entfernt.`);
+    });
     this.client.on('voiceStateUpdate', handleVoiceStateUpdate);
     // Discord reuses login presence when a reconnect requires a new Identify.
     this.client.options.presence = presence;

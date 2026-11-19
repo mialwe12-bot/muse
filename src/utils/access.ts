@@ -78,63 +78,109 @@ export const forgetGuildMembership = (guildId: string): void => {
 };
 
 // ---------------------------------------------------------------------------
-// Blacklist (data/blacklist.json)
+// Benachrichtigungen an den Bot-Besitzer (Direktnachricht)
+
+export const notifyOwner = async (client: Client, text: string): Promise<void> => {
+  try {
+    const id = await resolveOwnerId(client);
+    const user = await client.users.fetch(id);
+    await user.send({content: text.slice(0, 2000), allowedMentions: {parse: []}});
+  } catch (error: unknown) {
+    console.warn(`Konnte dem Bot-Besitzer keine Nachricht schicken: ${String((error as Error).message ?? error)}`);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Blacklist (data/blacklist.json): Nutzer und ganze Server
 
 export type BlacklistEntry = {userId: string; reason: string; addedAt: string};
+export type GuildBlacklistEntry = {guildId: string; name: string; reason: string; addedAt: string};
 
 const BLACKLIST_FILE = path.join(DATA_DIR, 'blacklist.json');
-let blacklist: Map<string, BlacklistEntry> | undefined;
+let blacklist: {users: Map<string, BlacklistEntry>; guilds: Map<string, GuildBlacklistEntry>} | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 
-const loadBlacklist = async (): Promise<Map<string, BlacklistEntry>> => {
+const loadBlacklist = async () => {
   if (blacklist) {
     return blacklist;
   }
 
   try {
-    const entries = JSON.parse(await fs.readFile(BLACKLIST_FILE, 'utf8')) as BlacklistEntry[];
-    blacklist = new Map(entries.map(entry => [entry.userId, entry]));
+    const raw = JSON.parse(await fs.readFile(BLACKLIST_FILE, 'utf8')) as BlacklistEntry[] | {users?: BlacklistEntry[]; guilds?: GuildBlacklistEntry[]};
+    // Altes Format: nur ein Array mit Nutzern.
+    const users = Array.isArray(raw) ? raw : raw.users ?? [];
+    const guilds = Array.isArray(raw) ? [] : raw.guilds ?? [];
+    blacklist = {
+      users: new Map(users.map(entry => [entry.userId, entry])),
+      guilds: new Map(guilds.map(entry => [entry.guildId, entry])),
+    };
   } catch (error: unknown) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw error;
     }
 
-    blacklist = new Map();
+    blacklist = {users: new Map(), guilds: new Map()};
   }
 
   return blacklist;
 };
 
 const saveBlacklist = async (): Promise<void> => {
-  const entries = [...(await loadBlacklist()).values()];
+  const list = await loadBlacklist();
+  const data = JSON.stringify({users: [...list.users.values()], guilds: [...list.guilds.values()]}, null, 2);
   writeQueue = writeQueue.catch(() => undefined).then(async () => {
     const temporary = `${BLACKLIST_FILE}.tmp`;
-    await fs.writeFile(temporary, JSON.stringify(entries, null, 2));
+    await fs.writeFile(temporary, data);
     await fs.rename(temporary, BLACKLIST_FILE);
   });
   await writeQueue;
 };
 
-export const isBlacklisted = async (userId: string): Promise<boolean> => !isOwner(userId) && (await loadBlacklist()).has(userId);
+export const isBlacklisted = async (userId: string): Promise<boolean> => !isOwner(userId) && (await loadBlacklist()).users.has(userId);
 
-export const getBlacklist = async (): Promise<BlacklistEntry[]> => [...(await loadBlacklist()).values()];
+export const getBlacklist = async (): Promise<BlacklistEntry[]> => [...(await loadBlacklist()).users.values()];
 
 /** Returns false if the user was already on the list. */
 export const addToBlacklist = async (userId: string, reason: string): Promise<boolean> => {
-  const list = await loadBlacklist();
-  if (list.has(userId)) {
+  const {users} = await loadBlacklist();
+  if (users.has(userId)) {
     return false;
   }
 
-  list.set(userId, {userId, reason, addedAt: new Date().toISOString()});
+  users.set(userId, {userId, reason, addedAt: new Date().toISOString()});
   await saveBlacklist();
   return true;
 };
 
 /** Returns false if the user was not on the list. */
 export const removeFromBlacklist = async (userId: string): Promise<boolean> => {
-  const list = await loadBlacklist();
-  if (!list.delete(userId)) {
+  if (!(await loadBlacklist()).users.delete(userId)) {
+    return false;
+  }
+
+  await saveBlacklist();
+  return true;
+};
+
+export const getGuildBlacklistEntry = async (guildId: string): Promise<GuildBlacklistEntry | undefined> => (await loadBlacklist()).guilds.get(guildId);
+
+export const getGuildBlacklist = async (): Promise<GuildBlacklistEntry[]> => [...(await loadBlacklist()).guilds.values()];
+
+/** Returns false if the server was already on the list. */
+export const addGuildToBlacklist = async (guildId: string, name: string, reason: string): Promise<boolean> => {
+  const {guilds} = await loadBlacklist();
+  if (guilds.has(guildId)) {
+    return false;
+  }
+
+  guilds.set(guildId, {guildId, name, reason, addedAt: new Date().toISOString()});
+  await saveBlacklist();
+  return true;
+};
+
+/** Returns false if the server was not on the list. */
+export const removeGuildFromBlacklist = async (guildId: string): Promise<boolean> => {
+  if (!(await loadBlacklist()).guilds.delete(guildId)) {
     return false;
   }
 

@@ -7,7 +7,8 @@ import {prisma} from '../utils/db.js';
 import {REST} from '@discordjs/rest';
 import {Setting} from '@prisma/client';
 import registerCommandsOnGuild from '../utils/register-commands-on-guild.js';
-import {admitNewGuild} from '../utils/licenses.js';
+import {admitNewGuild, leaveIfNotAllowed} from '../utils/licenses.js';
+import {notifyOwner} from '../utils/access.js';
 
 export async function createGuildSettings(guildId: string): Promise<Setting> {
   return prisma.setting.upsert({
@@ -25,6 +26,18 @@ export default async (guild: Guild): Promise<void> => {
   // Besitzer-Server, lizenziert (ggf. automatisch über die Lizenz des
   // Server-Besitzers) oder Frist zum Aktivieren.
   const state = await admitNewGuild(guild);
+  if (state.kind === 'blocked') {
+    await leaveIfNotAllowed(guild);
+    return;
+  }
+
+  const stateText = {
+    owner: 'du bist dort Mitglied',
+    licensed: state.kind === 'licensed' ? `automatisch freigeschaltet mit Lizenz \`${state.activation.licenseId}\` von <@${state.activation.userId}>` : '',
+    grace: 'nicht lizenziert, 15 Minuten Frist zum Aktivieren',
+    denied: '',
+  }[state.kind];
+  await notifyOwner(guild.client, `➕ Ich wurde auf den Server **${guild.name}** (\`${guild.id}\`, ${guild.memberCount} Mitglieder) eingeladen: ${stateText}.`);
 
   await createGuildSettings(guild.id);
 
@@ -50,5 +63,5 @@ export default async (guild: Guild): Promise<void> => {
     return;
   }
 
-  await owner.send(`👋 Hi! Jemand (wahrscheinlich du) hat mich gerade auf einen deiner Server eingeladen${state.kind === 'licensed' ? ' – er wurde automatisch mit deiner Lizenz freigeschaltet' : ''}. Standardmäßig können mich alle Mitglieder in allen Kanälen benutzen. Wie du das einschränkst, steht hier: https://github.com/museofficial/muse/wiki/Configuring-Bot-Permissions`).catch(() => undefined);
+  await owner.send(`👋 Hi! Jemand (wahrscheinlich du) hat mich gerade auf einen deiner Server eingeladen${state.kind === 'licensed' ? ' – er wurde automatisch mit deiner Lizenz freigeschaltet' : ''}. Ich bin **ByteMusic**, dein Musik-Bot – leg los mit \`/play\` und schau dir mit \`/help\` alle Befehle an. Standardmäßig können mich alle Mitglieder in allen Kanälen benutzen. Einschränken kannst du das unter Servereinstellungen → Integrationen → ByteMusic.`).catch(() => undefined);
 };
