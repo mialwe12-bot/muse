@@ -117,7 +117,7 @@ export const giveLicense = async (userId: string, maxServers: number, days: numb
 export const createKey = async (maxServers: number, days: number | null, note: string): Promise<LicenseKey> => {
   const data = await load();
   const key: LicenseKey = {
-    key: `MUSE-${randomId(4)}-${randomId(4)}-${randomId(4)}`,
+    key: `BYTE-${randomId(4)}-${randomId(4)}-${randomId(4)}`,
     maxServers,
     days,
     note,

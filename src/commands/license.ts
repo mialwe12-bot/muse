@@ -33,7 +33,7 @@ export default class implements Command {
     .addSubcommand(sub => sub
       .setName('redeem')
       .setDescription('Lizenzschlüssel einlösen')
-      .addStringOption(option => option.setName('key').setDescription('Lizenzschlüssel, z. B. MUSE-ABCD-EFGH-JKLM').setRequired(true)))
+      .addStringOption(option => option.setName('key').setDescription('Lizenzschlüssel, z. B. BYTE-ABCD-EFGH-JKLM').setRequired(true)))
     // Nur Bot-Besitzer
     .addSubcommand(sub => sub
       .setName('give')
