@@ -9,7 +9,8 @@ import handleGuildCreate from './events/guild-create.js';
 import handleVoiceStateUpdate from './events/voice-state-update.js';
 import errorMsg from './utils/error-msg.js';
 import {isUserInVoice} from './utils/channels.js';
-import {checkAllGuilds, isBlacklisted, isOwnerInGuild, leaveIfOwnerAbsent, resolveOwnerId} from './utils/access.js';
+import {isBlacklisted, resolveOwnerId} from './utils/access.js';
+import {checkAllGuilds, getGuildState, leaveGuild} from './utils/licenses.js';
 import Config from './services/config.js';
 import {generateDependencyReport} from '@discordjs/voice';
 import {REST} from '@discordjs/rest';
@@ -83,16 +84,27 @@ export default class {
     // eslint-disable-next-line complexity
     this.client.on('interactionCreate', async interaction => {
       try {
-        // Nur auf Servern, auf denen der Bot-Besitzer ist; sonst Server verlassen.
-        if (interaction.guild && !await isOwnerInGuild(interaction.guild)) {
-          if (interaction.isAutocomplete()) {
-            await interaction.respond([]).catch(() => undefined);
-          } else if (interaction.isRepliable()) {
-            await interaction.reply({content: errorMsg('dieser Bot funktioniert nur auf Servern seines Besitzers'), ephemeral: true}).catch(() => undefined);
-          }
+        // Nur auf Servern des Bot-Besitzers oder mit Lizenz. In der Frist nach
+        // dem Beitritt ist nur /license nutzbar, danach verlässt der Bot den Server.
+        if (interaction.guild) {
+          const state = await getGuildState(interaction.guild);
+          const isLicenseCommand = interaction.isChatInputCommand() && interaction.commandName === 'license';
+          if (state.kind === 'denied' || (state.kind === 'grace' && !isLicenseCommand)) {
+            const message = state.kind === 'grace'
+              ? `dieser Server ist nicht lizenziert. Wer eine Lizenz hat, kann ihn mit \`/license activate\` (oder \`/license redeem\`) freischalten, sonst verlasse ich ihn <t:${Math.floor(state.until.getTime() / 1000)}:R>.`
+              : 'dieser Server ist nicht lizenziert, deshalb verlasse ich ihn.';
+            if (interaction.isAutocomplete()) {
+              await interaction.respond([]).catch(() => undefined);
+            } else if (interaction.isRepliable()) {
+              await interaction.reply({content: errorMsg(message), ephemeral: true}).catch(() => undefined);
+            }
 
-          await leaveIfOwnerAbsent(interaction.guild);
-          return;
+            if (state.kind === 'denied') {
+              await leaveGuild(interaction.guild, 'weder Bot-Besitzer noch gültige Lizenz');
+            }
+
+            return;
+          }
         }
 
         if (await isBlacklisted(interaction.user.id)) {
@@ -196,14 +208,14 @@ export default class {
         return;
       }
 
-      // Server ohne den Bot-Besitzer verlassen, beim Start und danach alle 10 Minuten.
+      // Server ohne Bot-Besitzer und ohne Lizenz verlassen, beim Start und danach alle 5 Minuten.
       try {
         const ownerId = await resolveOwnerId(this.client);
         console.log(`Bot-Besitzer: ${ownerId}`);
         await checkAllGuilds(this.client);
         setInterval(() => {
           void checkAllGuilds(this.client);
-        }, 10 * 60 * 1000);
+        }, 5 * 60 * 1000);
       } catch (error: unknown) {
         console.error(`Besitzer-Check fehlgeschlagen: ${sanitizeErrorForLog(error)}`);
       }

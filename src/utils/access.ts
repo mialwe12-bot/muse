@@ -73,26 +73,8 @@ export const isOwnerInGuild = async (guild: Guild, force = false): Promise<boole
 };
 
 /** Leaves the guild if the owner is not a member. Returns true if the bot left. */
-export const leaveIfOwnerAbsent = async (guild: Guild, force = false): Promise<boolean> => {
-  if (await isOwnerInGuild(guild, force)) {
-    return false;
-  }
-
-  console.warn(`Verlasse Server ${guild.name} (${guild.id}): der Bot-Besitzer ist dort kein Mitglied.`);
-  membershipCache.delete(guild.id);
-  await guild.leave();
-  return true;
-};
-
-export const checkAllGuilds = async (client: Client): Promise<void> => {
-  for (const guild of client.guilds.cache.values()) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await leaveIfOwnerAbsent(guild, true);
-    } catch (error: unknown) {
-      console.error(`Besitzer-Check für Server ${guild.id} fehlgeschlagen:`, error);
-    }
-  }
+export const forgetGuildMembership = (guildId: string): void => {
+  membershipCache.delete(guildId);
 };
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import {prisma} from '../utils/db.js';
 import {REST} from '@discordjs/rest';
 import {Setting} from '@prisma/client';
 import registerCommandsOnGuild from '../utils/register-commands-on-guild.js';
-import {leaveIfOwnerAbsent} from '../utils/access.js';
+import {admitNewGuild} from '../utils/licenses.js';
 
 export async function createGuildSettings(guildId: string): Promise<Setting> {
   return prisma.setting.upsert({
@@ -22,10 +22,9 @@ export async function createGuildSettings(guildId: string): Promise<Setting> {
 }
 
 export default async (guild: Guild): Promise<void> => {
-  // Nur auf Servern bleiben, auf denen der Bot-Besitzer Mitglied ist.
-  if (await leaveIfOwnerAbsent(guild, true)) {
-    return;
-  }
+  // Besitzer-Server, lizenziert (ggf. automatisch über die Lizenz des
+  // Server-Besitzers) oder Frist zum Aktivieren.
+  const state = await admitNewGuild(guild);
 
   await createGuildSettings(guild.id);
 
@@ -46,5 +45,10 @@ export default async (guild: Guild): Promise<void> => {
   }
 
   const owner = await guild.fetchOwner();
-  await owner.send('👋 Hi! Jemand (wahrscheinlich du) hat mich gerade auf einen deiner Server eingeladen. Standardmäßig können mich alle Mitglieder in allen Kanälen benutzen. Wie du das einschränkst, steht hier: https://github.com/museofficial/muse/wiki/Configuring-Bot-Permissions');
+  if (state.kind === 'grace') {
+    await owner.send(`👋 Hi! Ich wurde gerade auf deinen Server **${guild.name}** eingeladen. Der Server ist aber nicht lizenziert. Wer eine Lizenz hat, kann ihn dort mit \`/license activate\` (oder einen Schlüssel mit \`/license redeem\`) freischalten. Sonst verlasse ich den Server <t:${Math.floor(state.until.getTime() / 1000)}:R>.`).catch(() => undefined);
+    return;
+  }
+
+  await owner.send(`👋 Hi! Jemand (wahrscheinlich du) hat mich gerade auf einen deiner Server eingeladen${state.kind === 'licensed' ? ' – er wurde automatisch mit deiner Lizenz freigeschaltet' : ''}. Standardmäßig können mich alle Mitglieder in allen Kanälen benutzen. Wie du das einschränkst, steht hier: https://github.com/museofficial/muse/wiki/Configuring-Bot-Permissions`).catch(() => undefined);
 };
