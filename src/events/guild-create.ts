@@ -53,7 +53,10 @@ export default async (guild: Guild): Promise<void> => {
       rest,
       applicationId: client.user!.id,
       guildId: guild.id,
-      commands: container.getAll<Command>(TYPES.Command).map(command => command.slashCommand),
+      // Admin-Befehle nur auf Servern, auf denen der Bot-Besitzer ist.
+      commands: container.getAll<Command>(TYPES.Command)
+        .filter(command => state.kind === 'owner' || !command.ownerOnly)
+        .map(command => command.slashCommand),
     });
   }
 

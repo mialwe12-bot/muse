@@ -4,6 +4,8 @@ import {AutocompleteInteraction, ButtonInteraction, ChatInputCommandInteraction}
 export default interface Command {
   readonly slashCommand: Partial<SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder> & Pick<SlashCommandBuilder, 'toJSON'>;
   readonly handledButtonIds?: readonly string[];
+  /** Nur für den Bot-Besitzer: nur auf seinen Servern registriert, nur für Admins sichtbar. */
+  readonly ownerOnly?: boolean;
   readonly requiresVC?: boolean | ((interaction: ChatInputCommandInteraction) => boolean);
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
   handleButtonInteraction?: (interaction: ButtonInteraction) => Promise<void>;

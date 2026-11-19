@@ -9,7 +9,7 @@ import handleGuildCreate from './events/guild-create.js';
 import handleVoiceStateUpdate from './events/voice-state-update.js';
 import errorMsg from './utils/error-msg.js';
 import {isUserInVoice} from './utils/channels.js';
-import {isBlacklisted, resolveOwnerId} from './utils/access.js';
+import {isBlacklisted, isOwnerInGuild, resolveOwnerId} from './utils/access.js';
 import {checkAllGuilds, getGuildState, leaveIfNotAllowed, ownLeaves} from './utils/licenses.js';
 import {notifyOwner} from './utils/access.js';
 import Config from './services/config.js';
@@ -229,18 +229,21 @@ export default class {
         spinner.text = '📡 updating commands on bot...';
         await rest.put(
           Routes.applicationCommands(this.client.user!.id),
-          {body: this.commandsByName.map(command => command.slashCommand.toJSON())},
+          // Admin-Befehle werden nie global registriert.
+          {body: this.commandsByName.filter(command => !command.ownerOnly).map(command => command.slashCommand.toJSON())},
         );
       } else {
         spinner.text = '📡 updating commands in all guilds...';
 
         await Promise.all([
           ...this.client.guilds.cache.map(async guild => {
+            // Admin-Befehle nur auf Servern, auf denen der Bot-Besitzer ist.
+            const ownerHere = await isOwnerInGuild(guild, true).catch(() => false);
             await registerCommandsOnGuild({
               rest,
               guildId: guild.id,
               applicationId: this.client.user!.id,
-              commands: this.commandsByName.map(c => c.slashCommand),
+              commands: this.commandsByName.filter(c => ownerHere || !c.ownerOnly).map(c => c.slashCommand),
             });
           }),
           // Remove commands registered on bot (if they exist)

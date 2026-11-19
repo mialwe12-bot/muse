@@ -43,6 +43,7 @@ import Volume from './commands/volume.js';
 import Help from './commands/help.js';
 import Blacklist from './commands/blacklist.js';
 import License from './commands/license.js';
+import LicenseAdmin from './commands/license-admin.js';
 import ThirdParty from './services/third-party.js';
 import FileCacheProvider from './services/file-cache.js';
 import KeyValueCacheProvider from './services/key-value-cache.js';
@@ -105,6 +106,7 @@ if (config.SPOTIFY_CLIENT_ID !== '' && config.SPOTIFY_CLIENT_SECRET !== '') {
   Help,
   Blacklist,
   License,
+  LicenseAdmin,
 ].forEach(command => {
   container.bind<Command>(TYPES.Command).to(command).inSingletonScope();
 });

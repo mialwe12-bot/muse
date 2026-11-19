@@ -12,9 +12,13 @@ const since = (iso: string) => `<t:${Math.floor(new Date(iso).getTime() / 1000)}
 
 @injectable()
 export default class implements Command {
+  public readonly ownerOnly = true;
+
   public readonly slashCommand = new SlashCommandBuilder()
     .setName('blacklist')
     .setDescription('Nutzer oder Server für den Bot sperren (nur Bot-Besitzer)')
+    .setDefaultMemberPermissions(0)
+    .setDMPermission(false)
     .addSubcommand(subcommand => subcommand
       .setName('add')
       .setDescription('Nutzer sperren')

@@ -9,8 +9,8 @@ import {forgetGuildMembership, getGuildBlacklistEntry, type GuildBlacklistEntry,
  * Lizenzsystem
  * - Eine Lizenz gehört einem Discord-Nutzer und erlaubt `maxServers` Server,
  *   optional bis `expiresAt`. Ein Nutzer kann mehrere Lizenzen haben.
- * - Lizenzen vergibt der Bot-Besitzer direkt (/license give) oder als
- *   Schlüssel (/license key), den jemand mit /license redeem einlöst.
+ * - Lizenzen vergibt der Bot-Besitzer direkt (/license-admin give) oder als
+ *   Schlüssel (/license-admin key), den jemand mit /license redeem einlöst.
  * - Ein Server ist erlaubt, wenn der Bot-Besitzer dort Mitglied ist oder er
  *   mit einer gültigen Lizenz aktiviert wurde. Neue, nicht lizenzierte Server
  *   bekommen GRACE_MS Zeit zum Aktivieren, danach verlässt der Bot sie.

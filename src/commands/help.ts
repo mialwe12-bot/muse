@@ -20,7 +20,7 @@ export default class implements Command {
   public async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     // Admin-Befehle nur dem Bot-Besitzer zeigen.
     const commandList = this.commands
-      .filter(c => isOwner(interaction.user.id) || c.slashCommand.name !== 'blacklist')
+      .filter(c => isOwner(interaction.user.id) || !c.ownerOnly)
       .map(c => `**/${c.slashCommand.name ?? ''}** — ${c.slashCommand.description ?? ''}`)
       .join('\n');
 
