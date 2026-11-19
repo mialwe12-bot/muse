@@ -1036,7 +1036,9 @@ export default class {
     }
 
     if (song.source === MediaSource.HLS) {
-      return this.createReadStream({url: song.url, cacheKey: song.url});
+      // Dateien mit bekannter Länge (z. B. Jellyfin) lassen sich spulen; Livestreams nicht.
+      const seek = !song.isLive && options.seek ? ['-ss', options.seek.toString()] : [];
+      return this.createReadStream({url: song.url, cacheKey: song.url, ffmpegInputOptions: song.isLive ? undefined : seek});
     }
 
     return this.getCachedOrRemoteStream(song, options, playback);

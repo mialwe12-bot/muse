@@ -3,6 +3,7 @@ import type Player from '../services/player.js';
 import {MediaSource, STATUS} from '../services/player-types.js';
 import type {ListeningSessionEntry, ListeningSessionRecord} from '../services/listening-session.js';
 import {buildQueueEmbed} from './build-embed.js';
+import {jellyfinDisplayUrl, maskSecrets} from './jellyfin.js';
 import {truncate} from './string.js';
 
 export const SESSION_BUTTON_PREFIX = 'muse-session:';
@@ -36,6 +37,14 @@ const trackLink = (track: Track, titleLimit = 120): string => {
     if (/^[\w-]{11}$/.test(url)) {
       url = `https://www.youtube.com/watch?v=${url}${track.offset > 0 ? `&t=${Math.floor(track.offset)}` : ''}`;
     }
+  }
+
+  // Keine API-Keys im Chat (z. B. Jellyfin-Links).
+  const jellyfin = jellyfinDisplayUrl(url);
+  if (jellyfin) {
+    url = jellyfin;
+  } else if (maskSecrets(url) !== url) {
+    return title;
   }
 
   if (url.length > 300) {

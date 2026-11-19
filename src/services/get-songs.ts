@@ -8,6 +8,7 @@ import SpotifyAPI, {SpotifyTrack, normalizeSpotifyUrl} from './spotify-api.js';
 import {URL} from 'node:url';
 import {getSoundCloudMetadata, YtDlpMediaUnavailableError} from '../utils/yt-dlp.js';
 import pLimit from 'p-limit';
+import {getJellyfinSongs, maskSecrets, parseJellyfinUrl} from '../utils/jellyfin.js';
 
 @injectable()
 export default class {
@@ -95,6 +96,21 @@ export default class {
       }
 
       newSongs.push(...convertedSongs);
+    } else if (parseJellyfinUrl(query)) {
+      let songs: SongMetadata[] = [];
+      try {
+        songs = await getJellyfinSongs(query, playlistLimit);
+      } catch (error: unknown) {
+        // Ohne Metadaten trotzdem abspielen (z. B. alter Jellyfin-Server).
+        console.warn(`Jellyfin-Metadaten nicht abrufbar für ${maskSecrets(query)}:`, error instanceof Error ? error.message : error);
+        songs = [await this.httpLiveStream(query)];
+      }
+
+      if (songs.length === 0) {
+        throw new Error('auf diesem Jellyfin-Link gibt es nichts zum Abspielen');
+      }
+
+      newSongs.push(...songs);
     } else {
       const song = await this.httpLiveStream(query);
 
@@ -157,19 +173,29 @@ export default class {
 
   private async httpLiveStream(url: string): Promise<SongMetadata> {
     return new Promise((resolve, reject) => {
-      ffmpeg(url).ffprobe((err, _) => {
+      ffmpeg(url).ffprobe((err, data) => {
         if (err) {
           reject(err);
           return;
         }
 
+        // Dateien mit fester Länge sind keine Livestreams: Dauer und Tags übernehmen.
+        const duration = Number(data?.format?.duration);
+        const length = Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 0;
+        const tags = (data?.format?.tags ?? {}) as Record<string, string | number | undefined>;
+        const tag = (name: string) => {
+          const value = tags[name] ?? tags[name.toUpperCase()];
+          return value === undefined || value === '' ? undefined : String(value);
+        };
+
+        const displayUrl = maskSecrets(url);
         resolve({
           url,
           source: MediaSource.HLS,
-          isLive: true,
-          title: url,
-          artist: url,
-          length: 0,
+          isLive: length === 0,
+          title: tag('title') ?? displayUrl,
+          artist: tag('artist') ?? tag('album_artist') ?? displayUrl,
+          length,
           offset: 0,
           playlist: null,
           thumbnailUrl: null,

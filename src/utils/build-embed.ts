@@ -5,6 +5,17 @@ import {MediaSource, STATUS, type QueuedSong} from '../services/player-types.js'
 import getProgressBar from './get-progress-bar.js';
 import {prettyTime} from './time.js';
 import {truncate} from './string.js';
+import {jellyfinDisplayUrl, maskSecrets} from './jellyfin.js';
+
+/** Kein API-Key im Chat: Jellyfin-Detailseite oder Link ohne Schlüssel. */
+const publicLink = (url: string): string | null => {
+  const jellyfin = jellyfinDisplayUrl(url);
+  if (jellyfin) {
+    return jellyfin;
+  }
+
+  return maskSecrets(url) === url ? url : null;
+};
 
 const getMaxSongTitleLength = (title: string) => {
   // eslint-disable-next-line no-control-regex
@@ -18,7 +29,8 @@ const getSongTitle = ({title, url, offset, source}: QueuedSong, shouldTruncate =
 
   if (source === MediaSource.SoundCloud || source === MediaSource.HLS) {
     // Keep long share parameters in the playable URL without overflowing Discord embeds.
-    return url.length > 1024 ? songTitle : `[${songTitle}](${url})`;
+    const link = source === MediaSource.HLS ? publicLink(url) : url;
+    return !link || link.length > 1024 ? songTitle : `[${songTitle}](${link})`;
   }
 
   const youtubeId = url.length === 11 ? url : getYouTubeID(url) ?? '';
