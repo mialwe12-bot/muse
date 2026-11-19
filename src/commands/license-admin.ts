@@ -5,8 +5,8 @@ import Command from './index.js';
 import {executeLicense} from './license.js';
 
 /**
- * Lizenzverwaltung für den Bot-Besitzer. Wird nur auf Servern registriert,
- * auf denen der Besitzer Mitglied ist, und dort nur Admins angezeigt.
+ * Lizenzverwaltung für den Bot-Besitzer. Wird nur auf Admin-Servern
+ * (ByteBot, ByteBeta, /admin-servers) registriert und dort nur Admins angezeigt.
  */
 @injectable()
 export default class implements Command {

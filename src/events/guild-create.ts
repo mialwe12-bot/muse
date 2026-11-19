@@ -9,6 +9,7 @@ import {Setting} from '@prisma/client';
 import registerCommandsOnGuild from '../utils/register-commands-on-guild.js';
 import {admitNewGuild, leaveIfNotAllowed} from '../utils/licenses.js';
 import {notifyOwner} from '../utils/access.js';
+import {isAdminGuild} from '../utils/admin-guilds.js';
 
 export async function createGuildSettings(guildId: string): Promise<Setting> {
   return prisma.setting.upsert({
@@ -40,6 +41,7 @@ export default async (guild: Guild): Promise<void> => {
   await notifyOwner(guild.client, `➕ Ich wurde auf den Server **${guild.name}** (\`${guild.id}\`, ${guild.memberCount} Mitglieder) eingeladen: ${stateText}.`);
 
   await createGuildSettings(guild.id);
+  const adminHere = await isAdminGuild(guild.id);
 
   const config = container.get<Config>(TYPES.Config);
 
@@ -53,9 +55,9 @@ export default async (guild: Guild): Promise<void> => {
       rest,
       applicationId: client.user!.id,
       guildId: guild.id,
-      // Admin-Befehle nur auf Servern, auf denen der Bot-Besitzer ist.
+      // Admin-Befehle nur auf ByteBot, ByteBeta und per /admin-servers freigegebenen Servern.
       commands: container.getAll<Command>(TYPES.Command)
-        .filter(command => state.kind === 'owner' || !command.ownerOnly)
+        .filter(command => adminHere || !command.ownerOnly)
         .map(command => command.slashCommand),
     });
   }
