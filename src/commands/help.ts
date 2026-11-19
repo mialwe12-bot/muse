@@ -39,7 +39,7 @@ export default class implements Command {
       'Mit `delay:0` bleibt er auch bei leerer Warteschlange. `/config set-leave-if-no-listeners` ist eine eigene Einstellung.',
       '',
       '**Jellyfin**',
-      'Links von Jellyfin gehen direkt mit `/play`: einzelne Titel, Alben, Playlists und Interpreten. Der Link braucht `api_key=…`, oder der Server ist beim Bot hinterlegt; dann reicht der normale Link aus der Weboberfläche.',
+      'Links von Jellyfin gehen direkt mit `/play`: einzelne Titel, Alben, Playlists und Interpreten. Der Link braucht `ApiKey=…`, oder der Server ist beim Bot hinterlegt; dann reicht der normale Link aus der Weboberfläche.',
       '',
       '**Lizenzen**',
       'ByteMusic läuft auf Servern seines Besitzers und auf lizenzierten Servern. Mit einer Lizenz schaltest du einen Server mit `/license activate` frei, einen Schlüssel (`BYTE-…`) löst du mit `/license redeem` ein. `/license status` zeigt, was du hast.',

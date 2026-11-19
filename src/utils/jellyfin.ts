@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {MediaSource, type QueuedPlaylist, type SongMetadata} from '../services/player-types.js';
 import {DATA_DIR} from '../services/config.js';
+import pLimit from 'p-limit';
 
 /*
  * Jellyfin-Links (z. B. .../Items/<id>/Download?ApiKey=…) erkennen und die
@@ -117,7 +118,7 @@ export const addJellyfinServer = async (rawUrl: string, apiKey: string): Promise
     throw new Error('ungültige Server-Adresse');
   }
 
-  const link: JellyfinLink = {base, itemId: '', apiKey, keyParam: 'api_key'};
+  const link: JellyfinLink = {base, itemId: '', apiKey, keyParam: 'ApiKey'};
   const info = await api<{ServerName?: string; ProductName?: string}>(link, '/System/Info', {});
   const entry: JellyfinServer = {base, apiKey, name: info.ServerName ?? new URL(base).host, addedAt: new Date().toISOString()};
   (await loadServers()).set(normalizeBase(base), entry);
@@ -184,7 +185,7 @@ export const resolveJellyfinLink = async (raw: string): Promise<JellyfinLink | n
 
   const url = new URL(raw);
   const itemId = webItemId(url) ?? ITEM_PATH.exec(url.pathname)?.[2]?.replace(/-/g, '').toLowerCase();
-  return itemId ? {base: server.base, itemId, apiKey: server.apiKey, keyParam: 'api_key'} : null;
+  return itemId ? {base: server.base, itemId, apiKey: server.apiKey, keyParam: 'ApiKey'} : null;
 };
 
 /** Link ohne API-Key für die Anzeige im Chat (Jellyfin-Detailseite). */
@@ -217,7 +218,7 @@ const api = async <T>(link: JellyfinLink, path: string, query: Record<string, st
     url.searchParams.set(key, value);
   }
 
-  url.searchParams.set('api_key', link.apiKey);
+  url.searchParams.set('ApiKey', link.apiKey);
   const response = await fetch(url, {
     headers: {Accept: 'application/json', Authorization: `MediaBrowser Token="${link.apiKey}"`},
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -259,10 +260,23 @@ const toSong = (link: JellyfinLink, item: JellyfinItem, playUrl: string, playlis
 
 const downloadUrl = (link: JellyfinLink, itemId: string) => `${link.base}/Items/${itemId}/Download?${link.keyParam}=${encodeURIComponent(link.apiKey)}`;
 
-export const getJellyfinSongs = async (raw: string, playlistLimit: number): Promise<SongMetadata[]> => {
+/** Prüft, ob Jellyfin die Datei noch findet (404, wenn sie verschoben oder gelöscht wurde). */
+const isReachable = async (url: string): Promise<boolean> => {
+  try {
+    const response = await fetch(url, {headers: {Range: 'bytes=0-0'}, signal: AbortSignal.timeout(TIMEOUT_MS)});
+    await response.body?.cancel();
+    return response.status !== 404 && response.status !== 410;
+  } catch {
+    return true; // Netzwerkprobleme nicht als „fehlt“ werten, beim Abspielen wird ohnehin übersprungen.
+  }
+};
+
+export type JellyfinResult = {songs: SongMetadata[]; missing: number};
+
+export const getJellyfinSongs = async (raw: string, playlistLimit: number): Promise<JellyfinResult> => {
   const link = await resolveJellyfinLink(raw);
   if (!link) {
-    throw new Error('für diesen Jellyfin-Server ist kein API-Key hinterlegt. Der Bot-Besitzer kann ihn mit `/jellyfin add` hinzufügen, oder du nimmst einen Link mit `api_key=`');
+    throw new Error('für diesen Jellyfin-Server ist kein API-Key hinterlegt. Der Bot-Besitzer kann ihn mit `/jellyfin add` hinzufügen, oder du nimmst einen Link mit `ApiKey=`');
   }
 
   // /Items?ids= funktioniert mit API-Keys auch ohne Nutzer-ID.
@@ -275,7 +289,12 @@ export const getJellyfinSongs = async (raw: string, playlistLimit: number): Prom
   const displayBase = `${link.base}/web/#/details?id=${item.Id}`;
   if (!COLLECTION_TYPES.has(item.Type ?? '') && item.Type !== 'MusicArtist' && item.Type !== 'Series') {
     // Eigener Link mit Key bleibt erhalten, Weblinks werden zur Download-URL.
-    return [toSong(link, item, parseJellyfinUrl(raw) ? raw : downloadUrl(link, item.Id), null)];
+    const playUrl = parseJellyfinUrl(raw) ? raw : downloadUrl(link, item.Id);
+    if (!await isReachable(playUrl)) {
+      throw new Error(`Jellyfin findet die Datei zu **${item.Name ?? 'diesem Eintrag'}** nicht mehr (verschoben oder gelöscht?)`);
+    }
+
+    return {songs: [toSong(link, item, playUrl, null)], missing: 0};
   }
 
   const playlist = {title: item.Name ?? 'Jellyfin', source: displayBase};
@@ -286,11 +305,21 @@ export const getJellyfinSongs = async (raw: string, playlistLimit: number): Prom
   });
   let children: JellyfinItem[] | undefined;
   if (item.Type === 'Playlist') {
-    // Reihenfolge der Playlist; manche Versionen wollen dafür eine Nutzer-ID, dann über ParentId.
-    try {
-      ({Items: children} = await api<{Items: JellyfinItem[]}>(link, `/Playlists/${item.Id}/Items`, {Fields: FIELDS, Limit: String(playlistLimit)}));
-    } catch {
-      children = undefined;
+    // Reihenfolge der Playlist: neuere Versionen wollen dafür eine Nutzer-ID mit Zugriff
+    // auf die Playlist, also die Nutzer durchprobieren; sonst über ParentId (alphabetisch).
+    const users = await api<Array<{Id: string}>>(link, '/Users', {}).catch(() => [] as Array<{Id: string}>);
+    for (const userId of [undefined, ...users.slice(0, 10).map(user => user.Id)]) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        ({Items: children} = await api<{Items: JellyfinItem[]}>(link, `/Playlists/${item.Id}/Items`, {
+          Fields: FIELDS, Limit: String(playlistLimit), ...(userId ? {userId} : {}),
+        }));
+        if (children?.length) {
+          break;
+        }
+      } catch {
+        children = undefined;
+      }
     }
   } else if (item.Type === 'MusicArtist') {
     ({Items: children} = await api<{Items: JellyfinItem[]}>(link, '/Items', {
@@ -303,8 +332,14 @@ export const getJellyfinSongs = async (raw: string, playlistLimit: number): Prom
     ({Items: children} = await byParent());
   }
 
-  return (children ?? [])
+  const songs = (children ?? [])
     .filter(child => child.MediaType === 'Audio' || child.MediaType === 'Video')
     .slice(0, playlistLimit)
     .map(child => toSong(link, child, downloadUrl(link, child.Id), playlist));
+
+  // Titel, deren Datei Jellyfin nicht mehr findet, gar nicht erst einreihen.
+  const limit = pLimit(8);
+  const reachable = await Promise.all(songs.map(async song => limit(async () => isReachable(song.url))));
+  const available = songs.filter((_, index) => reachable[index]);
+  return {songs: available, missing: songs.length - available.length};
 };

@@ -80,26 +80,27 @@ export default class {
       const [convertedSongs, nSongsNotFound, totalSongs] = await this.spotifySource(query, playlistLimit, shouldSplitChapters);
 
       if (totalSongs > playlistLimit) {
-        extraMsg = `a random sample of ${playlistLimit} songs was taken`;
+        extraMsg = `zufällig ${playlistLimit} Songs ausgewählt`;
       }
 
       if (totalSongs > playlistLimit && nSongsNotFound !== 0) {
-        extraMsg += ' and ';
+        extraMsg += ' und ';
       }
 
       if (nSongsNotFound !== 0) {
         if (nSongsNotFound === 1) {
-          extraMsg += '1 song was not found';
+          extraMsg += '1 Song nicht gefunden';
         } else {
-          extraMsg += `${nSongsNotFound.toString()} songs were not found`;
+          extraMsg += `${nSongsNotFound.toString()} Songs nicht gefunden`;
         }
       }
 
       newSongs.push(...convertedSongs);
     } else if (looksLikeJellyfin(query) || await resolveJellyfinLink(query)) {
       let songs: SongMetadata[] = [];
+      let missing = 0;
       try {
-        songs = await getJellyfinSongs(query, playlistLimit);
+        ({songs, missing} = await getJellyfinSongs(query, playlistLimit));
       } catch (error: unknown) {
         // Direkte Links mit Key ohne Metadaten trotzdem abspielen (z. B. alter Jellyfin-Server).
         if (!parseJellyfinUrl(query)) {
@@ -111,7 +112,13 @@ export default class {
       }
 
       if (songs.length === 0) {
-        throw new Error('auf diesem Jellyfin-Link gibt es nichts zum Abspielen');
+        throw new Error(missing > 0
+          ? `Jellyfin findet keine der ${missing} Dateien mehr (verschoben oder gelöscht?)`
+          : 'auf diesem Jellyfin-Link gibt es nichts zum Abspielen');
+      }
+
+      if (missing > 0) {
+        extraMsg = `${missing} ${missing === 1 ? 'Song fehlt' : 'Songs fehlen'} auf dem Jellyfin-Server und ${missing === 1 ? 'wurde' : 'wurden'} übersprungen`;
       }
 
       newSongs.push(...songs);
