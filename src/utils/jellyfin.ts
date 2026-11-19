@@ -1,9 +1,14 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import {MediaSource, type QueuedPlaylist, type SongMetadata} from '../services/player-types.js';
+import {DATA_DIR} from '../services/config.js';
 
 /*
  * Jellyfin-Links (z. B. .../Items/<id>/Download?ApiKey=…) erkennen und die
  * Metadaten (Titel, Interpret, Dauer, Cover) über die Jellyfin-API holen.
  * Alben und Playlists werden zu einzelnen Titeln aufgelöst.
+ * Für Server mit hinterlegtem API-Key (/jellyfin add) gehen auch Links ohne
+ * Key, z. B. aus der Weboberfläche (…/web/#/details?id=…).
  */
 
 type JellyfinLink = {base: string; itemId: string; apiKey: string; keyParam: string};
@@ -49,6 +54,137 @@ export const parseJellyfinUrl = (raw: string): JellyfinLink | null => {
   }
 
   return {base: `${url.origin}${match[1]}`, itemId: match[2].replace(/-/g, '').toLowerCase(), apiKey: url.searchParams.get(keyParam)!, keyParam};
+};
+
+export type JellyfinServer = {base: string; apiKey: string; name: string; addedAt: string};
+
+const SERVERS_FILE = path.join(DATA_DIR, 'jellyfin-servers.json');
+let servers: Map<string, JellyfinServer> | undefined;
+let writeQueue: Promise<void> = Promise.resolve();
+
+const normalizeBase = (base: string) => base.replace(/\/+$/, '').toLowerCase();
+
+const loadServers = async (): Promise<Map<string, JellyfinServer>> => {
+  if (servers) {
+    return servers;
+  }
+
+  try {
+    const entries = JSON.parse(await fs.readFile(SERVERS_FILE, 'utf8')) as JellyfinServer[];
+    servers = new Map(entries.map(entry => [normalizeBase(entry.base), entry]));
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+
+    servers = new Map();
+  }
+
+  return servers;
+};
+
+const saveServers = async (): Promise<void> => {
+  const data = JSON.stringify([...(await loadServers()).values()], null, 2);
+  writeQueue = writeQueue.catch(() => undefined).then(async () => {
+    const temporary = `${SERVERS_FILE}.tmp`;
+    await fs.writeFile(temporary, data, {mode: 0o600});
+    await fs.rename(temporary, SERVERS_FILE);
+  });
+  await writeQueue;
+};
+
+export const listJellyfinServers = async (): Promise<JellyfinServer[]> => [...(await loadServers()).values()];
+
+/** Basis-URL eines Jellyfin-Servers aus einem beliebigen Link (Weboberfläche oder API). */
+export const jellyfinBaseOf = (raw: string): string | null => {
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return null;
+    }
+
+    const prefix = /^(.*?)\/(?:web|Items|Audio|Videos|Playlists)(?:\/|$)/i.exec(url.pathname)?.[1] ?? url.pathname.replace(/\/+$/, '');
+    return `${url.origin}${prefix}`;
+  } catch {
+    return null;
+  }
+};
+
+/** Prüft den Key und speichert den Server. Gibt den Servernamen zurück. */
+export const addJellyfinServer = async (rawUrl: string, apiKey: string): Promise<JellyfinServer> => {
+  const base = jellyfinBaseOf(rawUrl);
+  if (!base) {
+    throw new Error('ungültige Server-Adresse');
+  }
+
+  const link: JellyfinLink = {base, itemId: '', apiKey, keyParam: 'api_key'};
+  const info = await api<{ServerName?: string; ProductName?: string}>(link, '/System/Info', {});
+  const entry: JellyfinServer = {base, apiKey, name: info.ServerName ?? new URL(base).host, addedAt: new Date().toISOString()};
+  (await loadServers()).set(normalizeBase(base), entry);
+  await saveServers();
+  return entry;
+};
+
+export const removeJellyfinServer = async (rawUrl: string): Promise<boolean> => {
+  const base = jellyfinBaseOf(rawUrl);
+  if (!base || !(await loadServers()).delete(normalizeBase(base))) {
+    return false;
+  }
+
+  await saveServers();
+  return true;
+};
+
+const ID = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/** Item-ID aus einem Weboberflächen-Link (#/details?id=…, #!/details?id=…, #/list?parentId=…). */
+const webItemId = (url: URL): string | null => {
+  const hashQuery = url.hash.includes('?') ? url.hash.slice(url.hash.indexOf('?') + 1) : '';
+  const params = new URLSearchParams(hashQuery);
+  for (const name of ['id', 'parentId', 'topParentId']) {
+    const value = params.get(name) ?? url.searchParams.get(name);
+    if (value && ID.test(value)) {
+      return value.replace(/-/g, '').toLowerCase();
+    }
+  }
+
+  return null;
+};
+
+/** Sieht der Link nach Jellyfin aus (mit oder ohne Key)? */
+export const looksLikeJellyfin = (raw: string): boolean => {
+  if (parseJellyfinUrl(raw)) {
+    return true;
+  }
+
+  try {
+    const url = new URL(raw);
+    return /\/web\//i.test(url.pathname + '/') && webItemId(url) !== null;
+  } catch {
+    return false;
+  }
+};
+
+/** Link mit Key aus dem Link selbst oder aus /jellyfin add. */
+export const resolveJellyfinLink = async (raw: string): Promise<JellyfinLink | null> => {
+  const direct = parseJellyfinUrl(raw);
+  if (direct) {
+    return direct;
+  }
+
+  const base = jellyfinBaseOf(raw);
+  if (!base) {
+    return null;
+  }
+
+  const server = (await loadServers()).get(normalizeBase(base));
+  if (!server) {
+    return null;
+  }
+
+  const url = new URL(raw);
+  const itemId = webItemId(url) ?? ITEM_PATH.exec(url.pathname)?.[2]?.replace(/-/g, '').toLowerCase();
+  return itemId ? {base: server.base, itemId, apiKey: server.apiKey, keyParam: 'api_key'} : null;
 };
 
 /** Link ohne API-Key für die Anzeige im Chat (Jellyfin-Detailseite). */
@@ -121,10 +257,12 @@ const toSong = (link: JellyfinLink, item: JellyfinItem, playUrl: string, playlis
   };
 };
 
+const downloadUrl = (link: JellyfinLink, itemId: string) => `${link.base}/Items/${itemId}/Download?${link.keyParam}=${encodeURIComponent(link.apiKey)}`;
+
 export const getJellyfinSongs = async (raw: string, playlistLimit: number): Promise<SongMetadata[]> => {
-  const link = parseJellyfinUrl(raw);
+  const link = await resolveJellyfinLink(raw);
   if (!link) {
-    return [];
+    throw new Error('für diesen Jellyfin-Server ist kein API-Key hinterlegt. Der Bot-Besitzer kann ihn mit `/jellyfin add` hinzufügen, oder du nimmst einen Link mit `api_key=`');
   }
 
   // /Items?ids= funktioniert mit API-Keys auch ohne Nutzer-ID.
@@ -134,21 +272,39 @@ export const getJellyfinSongs = async (raw: string, playlistLimit: number): Prom
     throw new Error('diesen Eintrag gibt es auf dem Jellyfin-Server nicht');
   }
 
-  if (!COLLECTION_TYPES.has(item.Type ?? '')) {
-    return [toSong(link, item, raw, null)];
+  const displayBase = `${link.base}/web/#/details?id=${item.Id}`;
+  if (!COLLECTION_TYPES.has(item.Type ?? '') && item.Type !== 'MusicArtist' && item.Type !== 'Series') {
+    // Eigener Link mit Key bleibt erhalten, Weblinks werden zur Download-URL.
+    return [toSong(link, item, parseJellyfinUrl(raw) ? raw : downloadUrl(link, item.Id), null)];
   }
 
-  const playlist = {title: item.Name ?? 'Jellyfin', source: jellyfinDisplayUrl(raw) ?? link.base};
-  const {Items: children} = item.Type === 'Playlist'
-    ? await api<{Items: JellyfinItem[]}>(link, `/Playlists/${item.Id}/Items`, {Fields: FIELDS, Limit: String(playlistLimit)})
-    : await api<{Items: JellyfinItem[]}>(link, '/Items', {
-      ParentId: item.Id, Recursive: 'true', Fields: FIELDS, Limit: String(playlistLimit),
-      IncludeItemTypes: 'Audio,Episode,Movie,MusicVideo,Video',
-      SortBy: 'ParentIndexNumber,IndexNumber,SortName',
-    });
+  const playlist = {title: item.Name ?? 'Jellyfin', source: displayBase};
+  const byParent = async () => api<{Items: JellyfinItem[]}>(link, '/Items', {
+    ParentId: item.Id, Recursive: 'true', Fields: FIELDS, Limit: String(playlistLimit),
+    IncludeItemTypes: 'Audio,Episode,Movie,MusicVideo,Video',
+    ...(item.Type === 'Playlist' ? {} : {SortBy: 'Album,ParentIndexNumber,IndexNumber,SortName'}),
+  });
+  let children: JellyfinItem[] | undefined;
+  if (item.Type === 'Playlist') {
+    // Reihenfolge der Playlist; manche Versionen wollen dafür eine Nutzer-ID, dann über ParentId.
+    try {
+      ({Items: children} = await api<{Items: JellyfinItem[]}>(link, `/Playlists/${item.Id}/Items`, {Fields: FIELDS, Limit: String(playlistLimit)}));
+    } catch {
+      children = undefined;
+    }
+  } else if (item.Type === 'MusicArtist') {
+    ({Items: children} = await api<{Items: JellyfinItem[]}>(link, '/Items', {
+      ArtistIds: item.Id, Recursive: 'true', IncludeItemTypes: 'Audio', Fields: FIELDS, Limit: String(playlistLimit),
+      SortBy: 'Album,ParentIndexNumber,IndexNumber,SortName',
+    }));
+  }
+
+  if (!children?.length) {
+    ({Items: children} = await byParent());
+  }
 
   return (children ?? [])
     .filter(child => child.MediaType === 'Audio' || child.MediaType === 'Video')
     .slice(0, playlistLimit)
-    .map(child => toSong(link, child, `${link.base}/Items/${child.Id}/Download?${link.keyParam}=${encodeURIComponent(link.apiKey)}`, playlist));
+    .map(child => toSong(link, child, downloadUrl(link, child.Id), playlist));
 };

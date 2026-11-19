@@ -8,7 +8,7 @@ import SpotifyAPI, {SpotifyTrack, normalizeSpotifyUrl} from './spotify-api.js';
 import {URL} from 'node:url';
 import {getSoundCloudMetadata, YtDlpMediaUnavailableError} from '../utils/yt-dlp.js';
 import pLimit from 'p-limit';
-import {getJellyfinSongs, maskSecrets, parseJellyfinUrl} from '../utils/jellyfin.js';
+import {getJellyfinSongs, looksLikeJellyfin, maskSecrets, parseJellyfinUrl, resolveJellyfinLink} from '../utils/jellyfin.js';
 
 @injectable()
 export default class {
@@ -96,12 +96,16 @@ export default class {
       }
 
       newSongs.push(...convertedSongs);
-    } else if (parseJellyfinUrl(query)) {
+    } else if (looksLikeJellyfin(query) || await resolveJellyfinLink(query)) {
       let songs: SongMetadata[] = [];
       try {
         songs = await getJellyfinSongs(query, playlistLimit);
       } catch (error: unknown) {
-        // Ohne Metadaten trotzdem abspielen (z. B. alter Jellyfin-Server).
+        // Direkte Links mit Key ohne Metadaten trotzdem abspielen (z. B. alter Jellyfin-Server).
+        if (!parseJellyfinUrl(query)) {
+          throw error;
+        }
+
         console.warn(`Jellyfin-Metadaten nicht abrufbar für ${maskSecrets(query)}:`, error instanceof Error ? error.message : error);
         songs = [await this.httpLiveStream(query)];
       }
@@ -175,7 +179,9 @@ export default class {
     return new Promise((resolve, reject) => {
       ffmpeg(url).ffprobe((err, data) => {
         if (err) {
-          reject(err);
+          // Statt der langen ffprobe-Ausgabe eine verständliche Meldung.
+          console.warn(`ffprobe fehlgeschlagen für ${maskSecrets(url)}:`, String(err).slice(0, 500));
+          reject(new Error('unter diesem Link gibt es keine abspielbare Audio- oder Videodatei. Nimm einen YouTube-, Spotify-, SoundCloud- oder Jellyfin-Link oder einen direkten Link auf eine Datei'));
           return;
         }
 

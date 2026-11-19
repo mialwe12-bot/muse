@@ -45,6 +45,7 @@ import Blacklist from './commands/blacklist.js';
 import License from './commands/license.js';
 import LicenseAdmin from './commands/license-admin.js';
 import AdminServers from './commands/admin-servers.js';
+import Jellyfin from './commands/jellyfin.js';
 import ThirdParty from './services/third-party.js';
 import FileCacheProvider from './services/file-cache.js';
 import KeyValueCacheProvider from './services/key-value-cache.js';
@@ -109,6 +110,7 @@ if (config.SPOTIFY_CLIENT_ID !== '' && config.SPOTIFY_CLIENT_SECRET !== '') {
   License,
   LicenseAdmin,
   AdminServers,
+  Jellyfin,
 ].forEach(command => {
   container.bind<Command>(TYPES.Command).to(command).inSingletonScope();
 });
