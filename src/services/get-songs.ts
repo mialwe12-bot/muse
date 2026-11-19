@@ -8,7 +8,7 @@ import SpotifyAPI, {SpotifyTrack, normalizeSpotifyUrl} from './spotify-api.js';
 import {URL} from 'node:url';
 import {getSoundCloudMetadata, YtDlpMediaUnavailableError} from '../utils/yt-dlp.js';
 import pLimit from 'p-limit';
-import {getJellyfinSongs, looksLikeJellyfin, maskSecrets, parseJellyfinUrl, resolveJellyfinLink} from '../utils/jellyfin.js';
+import {getJellyfinSongs, jellyfinToYouTube, looksLikeJellyfin, maskSecrets, parseJellyfinUrl, resolveJellyfinLink} from '../utils/jellyfin.js';
 
 @injectable()
 export default class {
@@ -97,10 +97,9 @@ export default class {
 
       newSongs.push(...convertedSongs);
     } else if (looksLikeJellyfin(query) || await resolveJellyfinLink(query)) {
-      let songs: SongMetadata[] = [];
-      let missing = 0;
+      let entries: Array<{song: SongMetadata; reachable: boolean}> = [];
       try {
-        ({songs, missing} = await getJellyfinSongs(query, playlistLimit));
+        entries = await getJellyfinSongs(query, playlistLimit);
       } catch (error: unknown) {
         // Direkte Links mit Key ohne Metadaten trotzdem abspielen (z. B. alter Jellyfin-Server).
         if (!parseJellyfinUrl(query)) {
@@ -108,19 +107,43 @@ export default class {
         }
 
         console.warn(`Jellyfin-Metadaten nicht abrufbar für ${maskSecrets(query)}:`, error instanceof Error ? error.message : error);
-        songs = [await this.httpLiveStream(query)];
+        entries = [{song: await this.httpLiveStream(query), reachable: true}];
       }
 
+      // Fehlende Dateien durch YouTube ersetzen (Suche erst beim Abspielen), Reihenfolge bleibt.
+      let fromYouTube = 0;
+      let lost = 0;
+      const songs = entries.flatMap(({song, reachable}) => {
+        if (reachable) {
+          return [song];
+        }
+
+        const replacement = jellyfinToYouTube(song);
+        if (replacement) {
+          fromYouTube++;
+          return [replacement];
+        }
+
+        lost++;
+        return [];
+      });
+
       if (songs.length === 0) {
-        throw new Error(missing > 0
-          ? `Jellyfin findet keine der ${missing} Dateien mehr (verschoben oder gelöscht?)`
+        throw new Error(lost > 0
+          ? `Jellyfin findet keine der ${lost} Dateien mehr (verschoben oder gelöscht?)`
           : 'auf diesem Jellyfin-Link gibt es nichts zum Abspielen');
       }
 
-      if (missing > 0) {
-        extraMsg = `${missing} ${missing === 1 ? 'Song fehlt' : 'Songs fehlen'} auf dem Jellyfin-Server und ${missing === 1 ? 'wurde' : 'wurden'} übersprungen`;
+      const notes = [];
+      if (fromYouTube > 0) {
+        notes.push(`${fromYouTube} ${fromYouTube === 1 ? 'Song fehlt' : 'Songs fehlen'} auf dem Jellyfin-Server und ${fromYouTube === 1 ? 'kommt' : 'kommen'} von YouTube`);
       }
 
+      if (lost > 0) {
+        notes.push(`${lost} ${lost === 1 ? 'Song wurde' : 'Songs wurden'} übersprungen`);
+      }
+
+      extraMsg = notes.join(', ');
       newSongs.push(...songs);
     } else {
       const song = await this.httpLiveStream(query);

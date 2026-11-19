@@ -394,8 +394,46 @@ const toMediaSource = (response: YtDlpResponse): YtDlpMediaSource => {
   };
 };
 
+/*
+ * Verzögerte YouTube-Suche: Songs mit url „ytsearch1:<Suchbegriff>“ werden erst
+ * kurz vor dem Abspielen aufgelöst (z. B. Ersatz für fehlende Jellyfin-Dateien).
+ * Läuft über yt-dlp, verbraucht also kein Kontingent der YouTube-API.
+ */
+export const DEFERRED_SEARCH_PREFIX = 'ytsearch1:';
+export const isDeferredSearch = (url: string) => url.startsWith(DEFERRED_SEARCH_PREFIX);
+const deferredSearchCache = new Map<string, string>();
+
+export const resolveDeferredSearch = async (url: string): Promise<string> => {
+  const cached = deferredSearchCache.get(url);
+  if (cached) {
+    return cached;
+  }
+
+  let stdout: string;
+  try {
+    ({stdout} = await execa(getExecutable(), [
+      '--flat-playlist', '--dump-single-json', '--skip-download', '--no-warnings', '--no-cache-dir', url,
+    ], {timeout: YT_DLP_EXTRACT_TIMEOUT_MS}));
+  } catch (error: unknown) {
+    const detail = getExecaErrorMessage(error);
+    throw new Error(`YouTube-Suche fehlgeschlagen: ${detail}`);
+  }
+
+  const id = (JSON.parse(stdout) as {entries?: Array<{id?: string}>}).entries?.[0]?.id;
+  if (!id) {
+    throw new YtDlpMediaUnavailableError(`Kein YouTube-Treffer für „${url.slice(DEFERRED_SEARCH_PREFIX.length)}“`, 'unavailable');
+  }
+
+  if (deferredSearchCache.size > 2000) {
+    deferredSearchCache.clear();
+  }
+
+  deferredSearchCache.set(url, id);
+  return id;
+};
+
 export const getYouTubeMediaSource = async (videoIdOrUrl: string): Promise<YtDlpMediaSource> => (
-  toMediaSource(await extractMedia(toYouTubeWatchUrl(videoIdOrUrl)))
+  toMediaSource(await extractMedia(toYouTubeWatchUrl(isDeferredSearch(videoIdOrUrl) ? await resolveDeferredSearch(videoIdOrUrl) : videoIdOrUrl)))
 );
 
 export const getSoundCloudMetadata = async (url: string, playlistLimit: number): Promise<SoundCloudMetadata> => (

@@ -103,7 +103,7 @@ export default class {
   }
 
   async findAudioFallback(song: SongMetadata): Promise<SongMetadata | null> {
-    if (song.source !== MediaSource.Youtube || song.isLive) {
+    if (song.source !== MediaSource.Youtube || song.isLive || song.url.startsWith('ytsearch1:')) {
       return null;
     }
 

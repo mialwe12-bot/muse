@@ -192,7 +192,8 @@ export default class AddQueryToQueue {
     if (!this.sponsorBlock
           || (this.sponsorBlockDisabledUntil && new Date() < this.sponsorBlockDisabledUntil)
           || song.source !== MediaSource.Youtube
-          || !song.url) {
+          || !song.url
+          || song.url.startsWith('ytsearch1:')) {
       return song;
     }
 

@@ -260,6 +260,17 @@ const toSong = (link: JellyfinLink, item: JellyfinItem, playUrl: string, playlis
 
 const downloadUrl = (link: JellyfinLink, itemId: string) => `${link.base}/Items/${itemId}/Download?${link.keyParam}=${encodeURIComponent(link.apiKey)}`;
 
+/** Ersatz für eine fehlende Jellyfin-Datei: YouTube-Suche nach Interpret und Titel, aufgelöst erst beim Abspielen. */
+export const jellyfinToYouTube = (song: SongMetadata): SongMetadata | null => {
+  const title = song.title.replace(/\s+/g, ' ').trim();
+  if (title.length < 2) {
+    return null;
+  }
+
+  const artist = song.artist === 'Jellyfin' || /^\d{4}$/.test(song.artist) ? '' : song.artist;
+  return {...song, source: MediaSource.Youtube, isLive: false, url: `ytsearch1:${artist ? `${artist} - ` : ''}${title}`};
+};
+
 /** Prüft, ob Jellyfin die Datei noch findet (404, wenn sie verschoben oder gelöscht wurde). */
 const isReachable = async (url: string): Promise<boolean> => {
   try {
@@ -271,7 +282,8 @@ const isReachable = async (url: string): Promise<boolean> => {
   }
 };
 
-export type JellyfinResult = {songs: SongMetadata[]; missing: number};
+/** Titel in Playlist-Reihenfolge; reachable = false, wenn Jellyfin die Datei nicht mehr findet. */
+export type JellyfinResult = Array<{song: SongMetadata; reachable: boolean}>;
 
 export const getJellyfinSongs = async (raw: string, playlistLimit: number): Promise<JellyfinResult> => {
   const link = await resolveJellyfinLink(raw);
@@ -290,11 +302,8 @@ export const getJellyfinSongs = async (raw: string, playlistLimit: number): Prom
   if (!COLLECTION_TYPES.has(item.Type ?? '') && item.Type !== 'MusicArtist' && item.Type !== 'Series') {
     // Eigener Link mit Key bleibt erhalten, Weblinks werden zur Download-URL.
     const playUrl = parseJellyfinUrl(raw) ? raw : downloadUrl(link, item.Id);
-    if (!await isReachable(playUrl)) {
-      throw new Error(`Jellyfin findet die Datei zu **${item.Name ?? 'diesem Eintrag'}** nicht mehr (verschoben oder gelöscht?)`);
-    }
-
-    return {songs: [toSong(link, item, playUrl, null)], missing: 0};
+    const song = toSong(link, item, playUrl, null);
+    return [{song, reachable: await isReachable(playUrl)}];
   }
 
   const playlist = {title: item.Name ?? 'Jellyfin', source: displayBase};
@@ -340,6 +349,5 @@ export const getJellyfinSongs = async (raw: string, playlistLimit: number): Prom
   // Titel, deren Datei Jellyfin nicht mehr findet, gar nicht erst einreihen.
   const limit = pLimit(8);
   const reachable = await Promise.all(songs.map(async song => limit(async () => isReachable(song.url))));
-  const available = songs.filter((_, index) => reachable[index]);
-  return {songs: available, missing: songs.length - available.length};
+  return songs.map((song, index) => ({song, reachable: reachable[index]}));
 };

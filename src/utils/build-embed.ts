@@ -33,6 +33,11 @@ const getSongTitle = ({title, url, offset, source}: QueuedSong, shouldTruncate =
     return !link || link.length > 1024 ? songTitle : `[${songTitle}](${link})`;
   }
 
+  if (url.startsWith('ytsearch1:')) {
+    // Ersatz-Song, der erst beim Abspielen auf YouTube gesucht wird.
+    return songTitle;
+  }
+
   const youtubeId = url.length === 11 ? url : getYouTubeID(url) ?? '';
 
   return `[${songTitle}](https://www.youtube.com/watch?v=${youtubeId}${offset === 0 ? '' : '&t=' + String(offset)})`;
