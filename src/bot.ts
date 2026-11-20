@@ -17,10 +17,17 @@ import {generateDependencyReport} from '@discordjs/voice';
 import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v10';
 import registerCommandsOnGuild from './utils/register-commands-on-guild.js';
+import {localizeCommand} from './utils/localize-commands.js';
 import {BOT_INVITE_PERMISSIONS} from './utils/constants.js';
 import type SessionPlayer from './services/session-player.js';
 import {SESSION_BUTTON_PREFIX} from './utils/build-session-message.js';
-import {errorEmbed} from './utils/embeds.js';
+import {errorEmbed, notice} from './utils/embeds.js';
+import {CONTROL_COMMANDS, SKIP_COMMANDS, decideControl} from './utils/dj.js';
+import QueuePersistence from './services/queue-persistence.js';
+import {setAutoplayClient} from './services/autoplay.js';
+import {startPanel} from './panel/server.js';
+import PlayerManager from './managers/player.js';
+import {GuildMember} from 'discord.js';
 
 const sanitizeErrorDetail = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -139,6 +146,20 @@ export default class {
             return;
           }
 
+          // DJ-Rolle / Abstimmung zum Überspringen (per /config einstellbar).
+          if (CONTROL_COMMANDS.has(interaction.commandName) && interaction.member instanceof GuildMember) {
+            const player = container.get<PlayerManager>(TYPES.Managers.Player).getExisting(interaction.guild.id);
+            if (player) {
+              const decision = await decideControl(interaction.guild, interaction.member, player, SKIP_COMMANDS.has(interaction.commandName) ? 'skip' : 'control');
+              if (!decision.ok) {
+                await interaction.reply(decision.vote
+                  ? {embeds: [notice('info', decision.message)]}
+                  : {embeds: [errorEmbed(decision.message)], ephemeral: true, allowedMentions: {parse: []}});
+                return;
+              }
+            }
+          }
+
           if (command.execute) {
             await command.execute(interaction);
           }
@@ -231,7 +252,7 @@ export default class {
         await rest.put(
           Routes.applicationCommands(this.client.user!.id),
           // Admin-Befehle werden nie global registriert.
-          {body: this.commandsByName.filter(command => !command.ownerOnly).map(command => command.slashCommand.toJSON())},
+          {body: this.commandsByName.filter(command => !command.ownerOnly).map(command => localizeCommand(command.slashCommand.toJSON()))},
         );
       } else {
         spinner.text = '📡 updating commands in all guilds...';
@@ -254,6 +275,24 @@ export default class {
       }
 
       this.client.user!.setPresence(presence);
+      setAutoplayClient(this.client);
+      startPanel(this.client);
+
+      // Gespeicherte Warteschlangen nach einem Neustart fortsetzen.
+      try {
+        const persistence = new QueuePersistence(
+          container.get<PlayerManager>(TYPES.Managers.Player),
+          container.get<SessionPlayer>(TYPES.Services.SessionPlayer),
+        );
+        persistence.start();
+        setTimeout(() => {
+          persistence.restore(this.client).catch((error: unknown) => {
+            console.error(`Wiederherstellen der Warteschlangen fehlgeschlagen: ${sanitizeErrorForLog(error)}`);
+          });
+        }, 1000);
+      } catch (error: unknown) {
+        console.error(`Speichern der Warteschlangen nicht verfügbar: ${sanitizeErrorForLog(error)}`);
+      }
 
       spinner.succeed(`Ready! Invite the bot with https://discordapp.com/oauth2/authorize?client_id=${this.client.user?.id ?? ''}&scope=bot%20applications.commands&permissions=${BOT_INVITE_PERMISSIONS}`);
     });

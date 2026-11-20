@@ -5,6 +5,8 @@ import {TYPES} from '../types.js';
 import PlayerManager from '../managers/player.js';
 import {getSizeWithoutBots} from '../utils/channels.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
+import {switchToRadio} from '../services/autoplay.js';
+import {getGuildExtras} from '../utils/guild-extras.js';
 
 export default async (oldState: VoiceState, newState: VoiceState): Promise<void> => {
   const playerManager = container.get<PlayerManager>(TYPES.Managers.Player);
@@ -30,7 +32,28 @@ export default async (oldState: VoiceState, newState: VoiceState): Promise<void>
   }
 
   const voiceChannel = newState.guild.channels.cache.get(channelId) as VoiceChannel | undefined;
-  if (!voiceChannel || (getSizeWithoutBots(voiceChannel) === 0 && leaveIfNoListeners)) {
+  if (voiceChannel && getSizeWithoutBots(voiceChannel) > 0) {
+    return;
+  }
+
+  // Radio: statt zu gehen in den Radio-Kanal wechseln und dort weiterspielen.
+  // Im Radio-Kanal selbst bleibt der Bot auch ohne Zuhörer.
+  const {radioChannelId} = await getGuildExtras(player.guildId);
+  if (radioChannelId && player.voiceConnection === voiceConnection) {
+    if (radioChannelId === channelId) {
+      return;
+    }
+
+    try {
+      if (await switchToRadio(player, newState.guild)) {
+        return;
+      }
+    } catch (error: unknown) {
+      console.warn(`Wechsel in den Radio-Kanal fehlgeschlagen (${player.guildId}): ${String((error as Error).message ?? error)}`);
+    }
+  }
+
+  if (player.voiceConnection === voiceConnection && (!voiceChannel || leaveIfNoListeners)) {
     player.disconnect();
   }
 };

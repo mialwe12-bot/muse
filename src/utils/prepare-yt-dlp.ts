@@ -19,6 +19,7 @@ export default async function prepareYtDlp(config: Config): Promise<void> {
   }
 
   console.log(`YT_DLP_AUTO_UPDATE=true (${getExecutable()})`);
+  scheduleYtDlpUpdates(config);
 
   const updateResult = await updateYtDlp();
   if (updateResult.error) {
@@ -41,4 +42,26 @@ export default async function prepareYtDlp(config: Config): Promise<void> {
   }
 
   console.log(`YT_DLP_VERSION=${updateResult.afterVersion} (already current)`);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Zusätzlich zum Start einmal täglich aktualisieren, solange der Bot läuft. */
+function scheduleYtDlpUpdates(config: Config): void {
+  if (!config.YT_DLP_AUTO_UPDATE) {
+    return;
+  }
+
+  const timer = setInterval(() => {
+    void updateYtDlp().then(result => {
+      if (result.updated) {
+        console.log(`yt-dlp aktualisiert: ${result.beforeVersion ?? '?'} → ${result.afterVersion ?? '?'}`);
+      } else if (!result.updateSucceeded && result.error) {
+        console.warn(`yt-dlp-Update fehlgeschlagen: ${result.error}`);
+      }
+    }).catch((error: unknown) => {
+      console.warn(`yt-dlp-Update fehlgeschlagen: ${getErrorMessage(error)}`);
+    });
+  }, DAY_MS);
+  timer.unref();
 }

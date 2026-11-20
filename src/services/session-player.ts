@@ -12,10 +12,11 @@ import canUsePlaybackCommand from '../utils/can-use-playback-command.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
 import {buildHistoryMessages, buildMoreMessage, buildQueueMessage, buildSessionMessage, buildSessionMessages, SESSION_BUTTON_PREFIX} from '../utils/build-session-message.js';
 import {notice} from '../utils/embeds.js';
+import {decideControl} from '../utils/dj.js';
 
 const isMissingMessage = (error: unknown): boolean => Boolean(error && typeof error === 'object' && 'code' in error && error.code === 10008);
 const playbackCommands: Record<string, string> = {
-  previous: 'unskip', next: 'next', pause: 'pause', resume: 'resume', backward: 'seek', forward: 'fseek', shuffle: 'shuffle', stop: 'stop',
+  previous: 'unskip', next: 'next', pause: 'pause', resume: 'resume', backward: 'seek', forward: 'fseek', shuffle: 'shuffle', stop: 'stop', loop: 'loop',
 };
 
 @injectable()
@@ -247,7 +248,11 @@ export default class SessionPlayer {
 
     // Start every acknowledgement immediately, but reserve transport order
     // before any REST or database wait can let a later click overtake this one.
-    const acknowledgement = interaction.deferReply({ephemeral: true}).then(
+    // Blättern in einer privaten Warteschlangen-Ansicht ersetzt diese Nachricht,
+    // statt jedes Mal eine neue zu schicken.
+    const actionName = interaction.customId.slice(SESSION_BUTTON_PREFIX.length).split(':')[1];
+    const pagesInPlace = actionName === 'queue' && interaction.message.flags.has(MessageFlags.Ephemeral);
+    const acknowledgement = (pagesInPlace ? interaction.deferUpdate() : interaction.deferReply({ephemeral: true})).then(
       () => ({ok: true as const}),
       (error: unknown) => ({ok: false as const, error}),
     );
@@ -365,6 +370,15 @@ export default class SessionPlayer {
     if (!canControl() || !await canUsePlaybackCommand(card, interaction.user.id, command) || !canControl()) {
       await interaction.editReply({embeds: [notice('warn', 'Geh in den Sprachkanal des Bots und prüfe, ob du diesen Befehl benutzen darfst.')]});
       return;
+    }
+
+    if (action !== 'queue' && action !== 'more') {
+      const member = await guild.members.fetch(interaction.user.id);
+      const decision = await decideControl(guild, member, active, action === 'next' ? 'skip' : 'control');
+      if (!decision.ok) {
+        await interaction.editReply({embeds: [notice(decision.vote ? 'info' : 'warn', decision.message)], allowedMentions: {parse: []}});
+        return;
+      }
     }
 
     await this.applyAction(active, action);
@@ -556,6 +570,14 @@ export default class SessionPlayer {
       player.stop();
     } else if (action === 'shuffle') {
       player.shuffle();
+    } else if (action === 'loop') {
+      const current = player.getCurrent();
+      if (current && !current.isLive) {
+        player.loopCurrentSong = !player.loopCurrentSong;
+        if (player.loopCurrentSong) {
+          player.loopCurrentQueue = false;
+        }
+      }
     } else if (action === 'backward' || action === 'forward') {
       const track = player.getCurrent();
       if (track && !track.isLive) {

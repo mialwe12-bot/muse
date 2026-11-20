@@ -5,6 +5,7 @@ import {TYPES} from '../types.js';
 import PlayerManager from '../managers/player.js';
 import Command from './index.js';
 import {buildQueueEmbed} from '../utils/build-embed.js';
+import {buildQueueMessage} from '../utils/build-session-message.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
 
 @injectable()
@@ -37,12 +38,15 @@ export default class implements Command {
     const pageSizeFromOptions = interaction.options.getInteger('page-size');
     const pageSize = pageSizeFromOptions ?? (await getGuildSettings(guildId)).defaultQueuePageSize;
 
-    const embed = buildQueueEmbed(
-      player,
-      interaction.options.getInteger('page') ?? 1,
-      pageSize,
-    );
+    const page = interaction.options.getInteger('page') ?? 1;
+    // Mit laufender Hör-Session im selben Kanal: Seiten-Buttons zum Blättern.
+    const session = player.listeningSession?.snapshot();
+    if (session && !session.endedAt && session.channelId === interaction.channelId && player.getCurrent()) {
+      await interaction.reply({...buildQueueMessage(session, player, page - 1, pageSize), ephemeral: true});
+      return;
+    }
 
+    const embed = buildQueueEmbed(player, page, pageSize);
     await interaction.reply({embeds: [embed], ephemeral: true});
   }
 }

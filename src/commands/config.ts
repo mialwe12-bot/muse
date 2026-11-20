@@ -1,10 +1,11 @@
 import {SlashCommandBuilder} from '@discordjs/builders';
-import {ChatInputCommandInteraction, EmbedBuilder, PermissionFlagsBits} from 'discord.js';
+import {ChannelType, ChatInputCommandInteraction, EmbedBuilder, PermissionFlagsBits} from 'discord.js';
 import {injectable} from 'inversify';
 import {prisma} from '../utils/db.js';
 import Command from './index.js';
 import {getGuildSettings} from '../utils/get-guild-settings.js';
 import {notice} from '../utils/embeds.js';
+import {getGuildExtras, updateGuildExtras} from '../utils/guild-extras.js';
 
 @injectable()
 export default class implements Command {
@@ -74,6 +75,53 @@ export default class implements Command {
         .setDescription('Seitengröße von /queue')
         .setMinValue(1)
         .setMaxValue(30)
+        .setRequired(true)))
+    .addSubcommand(subcommand => subcommand
+      .setName('set-autoplay')
+      .setDescription('ähnliche Songs weiterspielen, wenn die Warteschlange leer ist')
+      .addBooleanOption(option => option
+        .setName('value')
+        .setDescription('Autoplay einschalten?')
+        .setRequired(true)))
+    .addSubcommand(subcommand => subcommand
+      .setName('set-radio')
+      .setDescription('Radio-Kanal: dorthin wechseln und weiterspielen, wenn alle Zuhörer gegangen sind')
+      .addChannelOption(option => option
+        .setName('channel')
+        .setDescription('Sprachkanal für das Radio (leer lassen = Radio ausschalten)')
+        .addChannelTypes(ChannelType.GuildVoice)
+        .setRequired(false))
+      .addStringOption(option => option
+        .setName('seed')
+        .setDescription('Startpunkt, falls noch nichts lief: Suchbegriff oder Link (z. B. „deutsche Charts“)')
+        .setMaxLength(200)
+        .setRequired(false)))
+    .addSubcommand(subcommand => subcommand
+      .setName('set-dj-role')
+      .setDescription('nur diese Rolle (und Admins) darf die Wiedergabe steuern')
+      .addRoleOption(option => option
+        .setName('role')
+        .setDescription('DJ-Rolle (leer lassen = alle dürfen steuern)')
+        .setRequired(false)))
+    .addSubcommand(subcommand => subcommand
+      .setName('set-vote-skip')
+      .setDescription('wer kein DJ ist, kann per Abstimmung überspringen')
+      .addBooleanOption(option => option
+        .setName('value')
+        .setDescription('Abstimmung zum Überspringen einschalten?')
+        .setRequired(true))
+      .addIntegerOption(option => option
+        .setName('percent')
+        .setDescription('nötiger Anteil der Zuhörer in Prozent [Standard: 50]')
+        .setMinValue(1)
+        .setMaxValue(100)
+        .setRequired(false)))
+    .addSubcommand(subcommand => subcommand
+      .setName('set-lyrics')
+      .setDescription('/lyrics auf diesem Server erlauben')
+      .addBooleanOption(option => option
+        .setName('value')
+        .setDescription('Liedtexte erlauben?')
         .setRequired(true)))
     .addSubcommand(subcommand => subcommand
       .setName('get')
@@ -224,10 +272,58 @@ export default class implements Command {
         break;
       }
 
+      case 'set-autoplay': {
+        const value = interaction.options.getBoolean('value')!;
+        await updateGuildExtras(interaction.guild!.id, {autoplay: value});
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', `**Autoplay** ist jetzt ${value ? 'an: wenn die Warteschlange leer ist, spiele ich ähnliche Songs weiter' : 'aus'}.`)]});
+        break;
+      }
+
+      case 'set-radio': {
+        const channel = interaction.options.getChannel('channel');
+        const seed = interaction.options.getString('seed')?.trim();
+        if (!channel) {
+          await updateGuildExtras(interaction.guild!.id, {radioChannelId: undefined, radioSeed: undefined});
+          await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', '**Radio** ist aus.')]});
+          break;
+        }
+
+        await updateGuildExtras(interaction.guild!.id, {radioChannelId: channel.id, radioSeed: seed || undefined});
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', `**Radio** ist an: Wenn alle Zuhörer gegangen sind, wechsle ich nach <#${channel.id}> und spiele dort ähnliche Songs weiter${seed ? ` (Startpunkt: „${seed}“)` : ''}.`)]});
+        break;
+      }
+
+      case 'set-dj-role': {
+        const role = interaction.options.getRole('role');
+        await updateGuildExtras(interaction.guild!.id, {djRoleId: role?.id});
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', role
+          ? `Nur noch <@&${role.id}> und Admins dürfen die Wiedergabe steuern (Hinzufügen mit /play dürfen alle). Wer allein mit dem Bot im Kanal ist, darf auch so steuern.`
+          : 'Keine DJ-Rolle mehr: alle im Sprachkanal dürfen steuern.')]});
+        break;
+      }
+
+      case 'set-vote-skip': {
+        const value = interaction.options.getBoolean('value')!;
+        const percent = interaction.options.getInteger('percent');
+        const extras = await updateGuildExtras(interaction.guild!.id, {voteSkip: value, ...(percent ? {voteSkipPercent: percent} : {})});
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', value
+          ? `**Abstimmung zum Überspringen** ist an: ${extras.voteSkipPercent} % der Zuhörer müssen \`/skip\` nutzen. DJs und Admins überspringen sofort.`
+          : '**Abstimmung zum Überspringen** ist aus.')]});
+        break;
+      }
+
+      case 'set-lyrics': {
+        const value = interaction.options.getBoolean('value')!;
+        await updateGuildExtras(interaction.guild!.id, {lyrics: value});
+        await interaction.reply({embeds: [notice('success', '⚙️ Einstellung gespeichert', `**Liedtexte** (/lyrics) sind jetzt ${value ? 'erlaubt' : 'abgeschaltet'}.`)]});
+        break;
+      }
+
       case 'get': {
         const embed = new EmbedBuilder().setTitle('Einstellungen');
 
         const config = await getGuildSettings(interaction.guild!.id);
+        const extras = await getGuildExtras(interaction.guild!.id);
 
         const settingsToShow = {
           'Playlist-Limit': config.playlistLimit,
@@ -240,6 +336,11 @@ export default class implements Command {
           'Standard-Seitengröße der Warteschlange': config.defaultQueuePageSize,
           'Lautstärke senken, wenn jemand spricht': config.turnDownVolumeWhenPeopleSpeak ? 'ja' : 'nein',
           'Ziel-Lautstärke beim Absenken': config.turnDownVolumeWhenPeopleSpeakTarget,
+          Autoplay: extras.autoplay ? 'an' : 'aus',
+          'Radio-Kanal': extras.radioChannelId ? `<#${extras.radioChannelId}>${extras.radioSeed ? ` (Start: „${extras.radioSeed}“)` : ''}` : 'aus',
+          'DJ-Rolle': extras.djRoleId ? `<@&${extras.djRoleId}>` : 'keine (alle dürfen steuern)',
+          'Abstimmung zum Überspringen': extras.voteSkip ? `an (${extras.voteSkipPercent} %)` : 'aus',
+          'Liedtexte (/lyrics)': extras.lyrics ? 'erlaubt' : 'aus',
         };
 
         let description = '';
@@ -249,7 +350,7 @@ export default class implements Command {
 
         embed.setDescription(description);
 
-        await interaction.reply({embeds: [embed]});
+        await interaction.reply({embeds: [embed], allowedMentions: {parse: []}});
 
         break;
       }

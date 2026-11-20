@@ -33,7 +33,8 @@ const CONFIG_MAP = {
     process.env.PLAYING_MESSAGE_UPDATE_INTERVAL_SECONDS ?? DEFAULT_PLAYING_MESSAGE_UPDATE_INTERVAL_SECONDS,
   ),
   YT_DLP_PATH: firstNonEmpty(process.env.YT_DLP_PATH, process.env.MUSE_BUNDLED_YT_DLP_PATH) ?? 'yt-dlp',
-  YT_DLP_AUTO_UPDATE: process.env.YT_DLP_AUTO_UPDATE === 'true',
+  // ByteMusic: standardmäßig an (YouTube ändert oft etwas), mit YT_DLP_AUTO_UPDATE=false abschaltbar.
+  YT_DLP_AUTO_UPDATE: process.env.YT_DLP_AUTO_UPDATE !== 'false',
 } as const;
 
 const BOT_ACTIVITY_TYPE_MAP = {

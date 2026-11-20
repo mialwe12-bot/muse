@@ -124,6 +124,10 @@ export default class {
   public guildId: string;
   public loopCurrentSong = false;
   public loopCurrentQueue = false;
+  /** Autoplay/Radio: liefert am Ende der Warteschlange den nächsten Song (oder null). */
+  public queueEndHandler?: (player: this) => Promise<QueuedSong | null>;
+  /** Wird bei jeder Änderung an Warteschlange/Wiedergabe aufgerufen (Speichern für Neustarts). */
+  public onStateChange?: () => void;
   private currentChannel: VoiceChannel | undefined;
   private voiceConnectionGeneration = 0;
   private pendingConnection?: {channelId: string; promise: Promise<void>};
@@ -586,6 +590,11 @@ export default class {
    */
   getQueue(): QueuedSong[] {
     return this.queue.slice(this.queuePosition + 1);
+  }
+
+  /** Bereits gespielte Songs (ohne den aktuellen), älteste zuerst. */
+  getHistory(): QueuedSong[] {
+    return this.queue.slice(0, Math.min(this.queuePosition, this.queue.length));
   }
 
   add(song: QueuedSong, {immediate = false, immediateOffset = 0} = {}): void {
@@ -1170,6 +1179,10 @@ export default class {
    * terminal update, but must not render progress from the new session.
    */
   private requestPlayingMessageUpdate(message = this.playingMessage): void {
+    try {
+      this.onStateChange?.();
+    } catch {}
+
     if (!message || message.retired
       || (message !== this.playingMessage && message.terminalState === undefined)) {
       return;
@@ -1469,6 +1482,31 @@ export default class {
     this.stopTrackingPosition();
     this.status = STATUS.IDLE;
     this.stopAudioPlayer(true);
+
+    // Autoplay/Radio: statt aufzuhören den nächsten passenden Song holen. Der
+    // Player ist dabei schon IDLE, damit ein gleichzeitiges /play normal startet.
+    if (this.queueEndHandler && this.voiceConnection) {
+      const version = this.currentQueueEntryVersion;
+      const connection = this.voiceConnection;
+      let next: QueuedSong | null = null;
+      try {
+        next = await this.queueEndHandler(this);
+      } catch (error: unknown) {
+        console.warn(`Autoplay failed for guild ${this.guildId}: ${sanitizeFfmpegError(error)}`);
+      }
+
+      if (next && version === this.currentQueueEntryVersion && this.voiceConnection === connection
+        && this.status === STATUS.IDLE && !this.getCurrent()) {
+        this.add(next);
+        await this.play();
+        return;
+      }
+
+      if (version !== this.currentQueueEntryVersion || this.voiceConnection !== connection || this.status !== STATUS.IDLE) {
+        // In der Zwischenzeit wurde etwas hinzugefügt, gestoppt oder getrennt.
+        return;
+      }
+    }
     // Let the response restore its original acknowledgment after the queue empties.
     if (this.playingMessage) {
       this.playingMessage.terminalState = 'finished';

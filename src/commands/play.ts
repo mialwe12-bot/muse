@@ -1,6 +1,6 @@
 import {AutocompleteInteraction, ChatInputCommandInteraction} from 'discord.js';
 import {URL} from 'url';
-import {SlashCommandBuilder, SlashCommandSubcommandsOnlyBuilder} from '@discordjs/builders';
+import {SlashCommandBuilder} from '@discordjs/builders';
 import {inject, injectable, optional} from 'inversify';
 import Spotify from 'spotify-web-api-node';
 import Command from './index.js';
@@ -11,10 +11,13 @@ import KeyValueCacheProvider from '../services/key-value-cache.js';
 import {ONE_HOUR_IN_SECONDS} from '../utils/constants.js';
 import AddQueryToQueue from '../services/add-query-to-queue.js';
 import {truncate} from '../utils/string.js';
+import {prisma} from '../utils/db.js';
+import PlayerManager from '../managers/player.js';
+import {MediaSource} from '../services/player-types.js';
 
 @injectable()
 export default class implements Command {
-  public readonly slashCommand: Partial<SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder> & Pick<SlashCommandBuilder, 'toJSON'>;
+  public readonly slashCommand: Command['slashCommand'];
 
   public requiresVC = true;
 
@@ -22,7 +25,8 @@ export default class implements Command {
   private readonly cache: KeyValueCacheProvider;
   private readonly addQueryToQueue: AddQueryToQueue;
 
-  constructor(@inject(TYPES.ThirdParty) @optional() thirdParty: ThirdParty, @inject(TYPES.KeyValueCache) cache: KeyValueCacheProvider, @inject(TYPES.Services.AddQueryToQueue) addQueryToQueue: AddQueryToQueue) {
+  constructor(@inject(TYPES.ThirdParty) @optional() thirdParty: ThirdParty, @inject(TYPES.KeyValueCache) cache: KeyValueCacheProvider, @inject(TYPES.Services.AddQueryToQueue) addQueryToQueue: AddQueryToQueue,
+    @inject(TYPES.Managers.Player) private readonly playerManager: PlayerManager) {
     this.spotify = thirdParty?.spotify;
     this.cache = cache;
     this.addQueryToQueue = addQueryToQueue;
@@ -105,6 +109,10 @@ export default class implements Command {
       }
     }
 
+    // Eigene Favoriten und zuletzt gespielte Songs dieses Servers zuerst.
+    const local = await this.localSuggestions(interaction.guildId, query).catch(() => []);
+    suggestions = [...local, ...suggestions.map(choice => ({...choice, name: choice.name.replace(/^YouTube: /, '🔎 ')}))];
+
     // Normalize after reading the cache or fallback so old results obey Discord's limits too.
     const choices = suggestions
       .filter(({name, value}) => name.length > 0 && (typeof value !== 'string' || value.length <= 100))
@@ -112,5 +120,29 @@ export default class implements Command {
       .map(choice => ({...choice, name: truncate(choice.name, 100)}));
 
     await interaction.respond(choices);
+  }
+
+  private async localSuggestions(guildId: string | null, query: string): Promise<Array<{name: string; value: string}>> {
+    if (!guildId) {
+      return [];
+    }
+
+    const needle = query.toLowerCase();
+    const favorites = (await prisma.favoriteQuery.findMany({where: {guildId}}))
+      .filter(favorite => favorite.name.toLowerCase().includes(needle) || favorite.query.toLowerCase().includes(needle))
+      .slice(0, 3)
+      .filter(favorite => favorite.query.length <= 100)
+      .map(favorite => ({name: `⭐ ${favorite.name}`, value: favorite.query}));
+
+    const seen = new Set<string>();
+    const player = this.playerManager.getExisting(guildId);
+    const recent = [...(player?.getHistory() ?? [])].reverse()
+      .filter(song => song.source === MediaSource.Youtube && /^[\w-]{11}$/.test(song.url))
+      .filter(song => `${song.title} ${song.artist}`.toLowerCase().includes(needle))
+      .filter(song => !seen.has(song.url) && Boolean(seen.add(song.url)))
+      .slice(0, 3)
+      .map(song => ({name: `🕘 ${song.title}`, value: `https://youtu.be/${song.url}`}));
+
+    return [...favorites, ...recent];
   }
 }

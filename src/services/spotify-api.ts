@@ -6,6 +6,8 @@ import {TYPES} from '../types.js';
 import ThirdParty from './third-party.js';
 import shuffle from 'array-shuffle';
 import {QueuedPlaylist} from './player.js';
+import {getPlaylistWithUser} from './spotify-user.js';
+import debug from '../utils/debug.js';
 
 export interface SpotifyTrack {
   name: string;
@@ -57,6 +59,16 @@ export default class {
   // The public embed page still carries the track list (title + artists, up to 100 tracks).
   async getPlaylist(url: string, playlistLimit: number): Promise<[SpotifyTrack[], QueuedPlaylist]> {
     const uri = spotifyURI.parse(url) as spotifyURI.Playlist;
+    // Mit verbundenem Spotify-Konto (Panel) die ganze Playlist laden.
+    try {
+      const full = await getPlaylistWithUser(uri.id, Math.max(playlistLimit, 1) * 4);
+      if (full && full.tracks.length > 0) {
+        return [this.limitEmbedTracks(full.tracks, playlistLimit), {title: full.name, source: `https://open.spotify.com/playlist/${uri.id}`}];
+      }
+    } catch (error: unknown) {
+      debug(`Spotify-Playlist über Nutzer-Konto fehlgeschlagen, nehme Embed-Seite: ${String((error as Error).message ?? error)}`);
+    }
+
     const entity = await this.getEmbedEntity('playlist', uri.id);
     const tracks = this.limitEmbedTracks(this.embedTracks(entity), playlistLimit);
     const playlist = {title: entity.name ?? entity.title ?? 'Spotify playlist', source: `https://open.spotify.com/playlist/${uri.id}`};

@@ -133,15 +133,17 @@ export const buildSessionMessages = (session: ListeningSessionRecord, player?: P
 
   if (current && player) {
     components.push(row(
-      button(session, 'previous', 'Zurück', {disabled: !player.canGoBack()}),
-      button(session, 'backward', '−10s', {disabled: current.isLive}),
-      button(session, player.status === STATUS.PAUSED ? 'resume' : 'pause', player.status === STATUS.PAUSED ? 'Fortsetzen' : 'Pause', {style: ButtonStyle.Primary}),
-      button(session, 'forward', '+10s', {disabled: current.isLive}),
-      button(session, 'next', 'Weiter', {disabled: !player.canGoForward(1)}),
+      button(session, 'previous', '⏮ Zurück', {disabled: !player.canGoBack()}),
+      button(session, 'backward', '⏪ 10s', {disabled: current.isLive}),
+      button(session, player.status === STATUS.PAUSED ? 'resume' : 'pause', player.status === STATUS.PAUSED ? '▶ Weiter spielen' : '⏸ Pause', {style: ButtonStyle.Primary}),
+      button(session, 'forward', '⏩ 10s', {disabled: current.isLive}),
+      button(session, 'next', '⏭ Nächster', {disabled: !player.canGoForward(1)}),
     ));
     components.push(row(
-      button(session, 'queue', 'Warteschlange'),
-      button(session, 'shuffle', 'Mischen', {disabled: player.isQueueEmpty()}),
+      button(session, 'queue', '📜 Warteschlange'),
+      button(session, 'shuffle', '🔀 Mischen', {disabled: player.isQueueEmpty()}),
+      button(session, 'loop', player.loopCurrentSong ? '🔂 Wiederholen: an' : '🔂 Wiederholen', {style: player.loopCurrentSong ? ButtonStyle.Success : ButtonStyle.Secondary, disabled: current.isLive}),
+      button(session, 'stop', '⏹ Stop', {style: ButtonStyle.Danger}),
     ));
   }
 
@@ -159,8 +161,8 @@ export const buildSessionMessages = (session: ListeningSessionRecord, player?: P
 export const buildSessionMessage = (session: ListeningSessionRecord, player?: Player, queuePageSize = 10): SessionMessagePayload => buildSessionMessages(session, player, queuePageSize)[0];
 
 const pagination = (session: ListeningSessionRecord, action: string, page: number, pages: number) => row(
-  button(session, action, 'Vorherige Seite', {page: page - 1, disabled: page === 0}),
-  button(session, action, 'Nächste Seite', {page: page + 1, disabled: page + 1 >= pages}),
+  button(session, action, '◀ Vorherige Seite', {page: page - 1, disabled: page === 0}),
+  button(session, action, 'Nächste Seite ▶', {page: page + 1, disabled: page + 1 >= pages}),
 );
 
 export const buildHistoryMessages = (session: ListeningSessionRecord): SessionMessagePayload[] => appendHistory([

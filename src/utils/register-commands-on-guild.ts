@@ -1,6 +1,7 @@
 import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v10';
 import Command from '../commands/index.js';
+import {localizeCommand} from './localize-commands.js';
 
 interface RegisterCommandsOnGuildOptions {
   rest: REST;
@@ -12,7 +13,7 @@ interface RegisterCommandsOnGuildOptions {
 const registerCommandsOnGuild = async ({rest, applicationId, guildId, commands}: RegisterCommandsOnGuildOptions) => {
   await rest.put(
     Routes.applicationGuildCommands(applicationId, guildId),
-    {body: commands.map(command => command.toJSON())},
+    {body: commands.map(command => localizeCommand(command.toJSON()))},
   );
 };
 

@@ -6,6 +6,7 @@ import type YoutubeAPI from '../services/youtube-api.js';
 import Config from '../services/config.js';
 import ListeningSession from '../services/listening-session.js';
 import SessionHistoryStore from '../services/session-history-store.js';
+import {queueEndHandler} from '../services/autoplay.js';
 
 @injectable()
 export default class {
@@ -36,6 +37,8 @@ export default class {
         this.sessionHistoryStore ? new ListeningSession(guildId, this.sessionHistoryStore) : undefined,
       );
 
+      player.queueEndHandler = queueEndHandler;
+      this.onCreate?.(player);
       this.guildPlayers.set(guildId, player);
     }
 
@@ -49,4 +52,11 @@ export default class {
   getExisting(guildId: string): Player | undefined {
     return this.guildPlayers.get(guildId);
   }
+
+  all(): Player[] {
+    return [...this.guildPlayers.values()];
+  }
+
+  /** Wird für jeden neuen Player aufgerufen (z. B. Speichern der Warteschlange). */
+  public onCreate?: (player: Player) => void;
 }
