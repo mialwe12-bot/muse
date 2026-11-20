@@ -2,7 +2,7 @@
 // Oberfläche des Panels: eine Seite, Daten kommen per fetch aus /api/state.
 // Alle Inhalte werden per textContent gesetzt (kein innerHTML mit Daten).
 export const PANEL_HTML = `<!doctype html>
-<html lang="de" data-state="__STATE__">
+<html lang="de" data-state="__STATE__" data-discord="__DISCORD__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -44,6 +44,7 @@ input,select{background:var(--bg);border:1px solid var(--line);color:var(--text)
 input:focus{outline:2px solid var(--accent);border-color:transparent}
 a.btn{display:inline-block;text-decoration:none}
 .btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer}
+.btn.discord{background:#5865f2;display:inline-flex;align-items:center;gap:8px;padding:11px 18px;font-size:15px}
 .btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
 .btn.danger{background:transparent;color:#ff9b9d;border:1px solid #5a2a2a}
 .btn.small{padding:5px 10px;font-size:13px;font-weight:500}
@@ -90,11 +91,24 @@ function toast(msg, kind){
   clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.style.display = 'none'; }, 4500);
 }
 if (STATE !== 'app') {
+  const discord = document.documentElement.dataset.discord === '1';
+  const titles = {expired:'Link abgelaufen', denied:'Kein Zugriff', 'oauth-failed':'Anmeldung fehlgeschlagen'};
+  const notes = {expired:'Dieser Anmelde-Link ist abgelaufen oder wurde schon benutzt.', denied:'Dieses Discord-Konto darf das Panel nicht benutzen. Nur der Bot-Besitzer hat Zugriff.', 'oauth-failed':'Die Anmeldung über Discord hat nicht geklappt. Bitte noch einmal versuchen.'};
   root.append(h('div', {class:'center'}, h('div', {class:'card login'},
     h('div', {class:'logo', text:'🎵'}),
-    h('h2', {text: STATE === 'expired' ? 'Link abgelaufen' : 'ByteMusic Panel'}),
-    h('p', {class:'muted'}, STATE === 'expired' ? 'Dieser Anmelde-Link ist abgelaufen oder wurde schon benutzt. ' : '', 'Zum Anmelden in Discord ', h('code', {text:'/panel'}), ' eingeben (nur für den Bot-Besitzer). Der Link ist 10 Minuten gültig.')
+    h('h2', {text: titles[STATE] || 'ByteMusic Panel'}),
+    notes[STATE] ? h('p', {class:'muted', text: notes[STATE]}) : null,
+    discord ? h('a', {class:'btn discord', href:'/auth/discord'}, h('svg', {viewBox:'0 0 24 24', width:'20', height:'20', 'aria-hidden':'true'}), ' Mit Discord anmelden') : null,
+    h('p', {class:'muted', style: discord ? 'margin-top:16px;font-size:13px' : undefined}, discord ? 'Oder in Discord ' : 'Zum Anmelden in Discord ', h('code', {text:'/panel'}), ' eingeben und den Einmal-Link öffnen (nur für den Bot-Besitzer).')
   )));
+  const svg = root.querySelector('a.discord svg');
+  if (svg) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(ns, 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '20'); icon.setAttribute('height', '20'); icon.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(ns, 'path'); path.setAttribute('fill', 'currentColor');
+    path.setAttribute('d', 'M20.32 4.37A19.8 19.8 0 0 0 15.4 2.85a13.6 13.6 0 0 0-.63 1.29 18.4 18.4 0 0 0-5.53 0 13 13 0 0 0-.64-1.29 19.7 19.7 0 0 0-4.92 1.52C.53 9.05-.32 13.62.1 18.13a19.9 19.9 0 0 0 6.03 3.04 14.6 14.6 0 0 0 1.29-2.1 12.9 12.9 0 0 1-2.03-.97l.5-.39a14.2 14.2 0 0 0 12.2 0l.5.39c-.65.38-1.33.71-2.04.97.37.74.8 1.44 1.29 2.1a19.8 19.8 0 0 0 6.04-3.04c.5-5.23-.84-9.76-3.56-13.76ZM8.02 15.36c-1.18 0-2.16-1.08-2.16-2.42 0-1.33.95-2.42 2.16-2.42 1.2 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Zm7.97 0c-1.19 0-2.16-1.08-2.16-2.42 0-1.33.95-2.42 2.16-2.42 1.2 0 2.18 1.1 2.16 2.42 0 1.34-.95 2.42-2.16 2.42Z');
+    icon.append(path); svg.replaceWith(icon);
+  }
   return;
 }
 let data = null;

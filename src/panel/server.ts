@@ -32,6 +32,13 @@ const spotifyRedirectUri = () => `${panelUrl()}/spotify/callback`;
 
 type Session = {userId: string; expiresAt: number; spotifyState?: string};
 
+// „Mit Discord anmelden“ (OAuth2, Scope identify). Braucht DISCORD_CLIENT_SECRET
+// und die Redirect-URI <PANEL_URL>/auth/discord/callback im Developer-Portal.
+const discordRedirectUri = () => `${panelUrl()}/auth/discord/callback`;
+const discordSecret = () => process.env.DISCORD_CLIENT_SECRET?.trim() ?? '';
+const oauthStates = new Map<string, number>();
+const OAUTH_COOKIE = 'bm_oauth';
+
 const loginTokens = new Map<string, {userId: string; expiresAt: number}>();
 let sessions = new Map<string, Session>();
 
@@ -76,7 +83,7 @@ const send = (response: http.ServerResponse, status: number, body: string, type 
     'Content-Security-Policy': "default-src 'self'; img-src 'self' https://cdn.discordapp.com data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     ...headers,
   });
-  response.end(body);
+  response.end(body.replace('data-discord="__DISCORD__"', `data-discord="${discordSecret() ? '1' : ''}"`));
 };
 
 const json = (response: http.ServerResponse, status: number, data: unknown) => send(response, status, JSON.stringify(data), 'application/json; charset=utf-8');
@@ -336,6 +343,84 @@ export const startPanel = (client: Client): void => {
       const url = new URL(request.url ?? '/', panelUrl());
       const current = sessionOf(request);
 
+      if (request.method === 'GET' && url.pathname === '/auth/discord') {
+        if (!discordSecret() || !client.user) {
+          send(response, 503, PANEL_HTML.replace('__STATE__', 'login'));
+          return;
+        }
+
+        const state = crypto.randomBytes(16).toString('hex');
+        oauthStates.set(state, Date.now() + LOGIN_TOKEN_MS);
+        redirect(response, `https://discord.com/oauth2/authorize?${new URLSearchParams({
+          client_id: client.user.id,
+          response_type: 'code',
+          redirect_uri: discordRedirectUri(),
+          scope: 'identify',
+          state,
+          prompt: 'none',
+        }).toString()}`, {'Set-Cookie': `${OAUTH_COOKIE}=${state}; Path=/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=600`});
+        return;
+      }
+
+      if (request.method === 'GET' && url.pathname === '/auth/discord/callback') {
+        const state = url.searchParams.get('state') ?? '';
+        const code = url.searchParams.get('code');
+        const expires = oauthStates.get(state);
+        oauthStates.delete(state);
+        const clearState = `${OAUTH_COOKIE}=; Path=/auth; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+        if (!code || !expires || expires < Date.now() || parseCookies(request.headers.cookie)[OAUTH_COOKIE] !== state || !client.user) {
+          send(response, 400, PANEL_HTML.replace('__STATE__', 'oauth-failed'), 'text/html; charset=utf-8', {'Set-Cookie': clearState});
+          return;
+        }
+
+        let userId: string | undefined;
+        try {
+          const token = await fetch('https://discord.com/api/v10/oauth2/token', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({
+              client_id: client.user.id,
+              client_secret: discordSecret(),
+              grant_type: 'authorization_code',
+              code,
+              redirect_uri: discordRedirectUri(),
+            }).toString(),
+            signal: AbortSignal.timeout(15_000),
+          }).then(async r => r.json() as Promise<{access_token?: string}>);
+          if (token.access_token) {
+            const me = await fetch('https://discord.com/api/v10/users/@me', {
+              headers: {Authorization: `Bearer ${token.access_token}`},
+              signal: AbortSignal.timeout(15_000),
+            }).then(async r => r.json() as Promise<{id?: string}>);
+            userId = me.id;
+          }
+        } catch (error: unknown) {
+          console.warn(`Panel: Discord-Anmeldung fehlgeschlagen: ${String((error as Error).message ?? error)}`);
+        }
+
+        if (!userId) {
+          send(response, 400, PANEL_HTML.replace('__STATE__', 'oauth-failed'), 'text/html; charset=utf-8', {'Set-Cookie': clearState});
+          return;
+        }
+
+        if (!isOwner(userId)) {
+          console.warn(`Panel: Anmeldeversuch von ${userId} abgelehnt`);
+          send(response, 403, PANEL_HTML.replace('__STATE__', 'denied'), 'text/html; charset=utf-8', {'Set-Cookie': clearState});
+          return;
+        }
+
+        const sid = crypto.randomBytes(32).toString('base64url');
+        sessions.set(hash(sid), {userId, expiresAt: Date.now() + SESSION_MS});
+        saveSessions();
+        response.writeHead(302, {
+          Location: '/',
+          'Cache-Control': 'no-store',
+          'Set-Cookie': [`${COOKIE}=${sid}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MS / 1000}`, clearState],
+        });
+        response.end();
+        return;
+      }
+
       if (request.method === 'GET' && url.pathname === '/login') {
         const token = url.searchParams.get('token') ?? '';
         const entry = loginTokens.get(hash(token));
@@ -353,7 +438,7 @@ export const startPanel = (client: Client): void => {
       }
 
       if (request.method === 'GET' && url.pathname === '/') {
-        send(response, 200, PANEL_HTML.replace('__STATE__', current ? 'app' : 'login'));
+        send(response, 200, PANEL_HTML.replace('__STATE__', current ? 'app' : 'login').replace('__DISCORD__', discordSecret() ? '1' : ''));
         return;
       }
 
@@ -456,6 +541,12 @@ export const startPanel = (client: Client): void => {
 
   setInterval(() => {
     const now = Date.now();
+    for (const [key, until] of oauthStates) {
+      if (until < now) {
+        oauthStates.delete(key);
+      }
+    }
+
     for (const [key, entry] of loginTokens) {
       if (entry.expiresAt < now) {
         loginTokens.delete(key);
