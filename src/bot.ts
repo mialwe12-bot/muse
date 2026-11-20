@@ -17,7 +17,6 @@ import {generateDependencyReport} from '@discordjs/voice';
 import {REST} from '@discordjs/rest';
 import {Routes} from 'discord-api-types/v10';
 import registerCommandsOnGuild from './utils/register-commands-on-guild.js';
-import {localizeCommand} from './utils/localize-commands.js';
 import {BOT_INVITE_PERMISSIONS} from './utils/constants.js';
 import type SessionPlayer from './services/session-player.js';
 import {SESSION_BUTTON_PREFIX} from './utils/build-session-message.js';
@@ -252,7 +251,7 @@ export default class {
         await rest.put(
           Routes.applicationCommands(this.client.user!.id),
           // Admin-Befehle werden nie global registriert.
-          {body: this.commandsByName.filter(command => !command.ownerOnly).map(command => localizeCommand(command.slashCommand.toJSON()))},
+          {body: this.commandsByName.filter(command => !command.ownerOnly).map(command => command.slashCommand.toJSON())},
         );
       } else {
         spinner.text = '📡 updating commands in all guilds...';
