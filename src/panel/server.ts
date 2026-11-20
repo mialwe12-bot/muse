@@ -14,6 +14,8 @@ import {
 import {connectSpotify, disconnectSpotify, spotifyAuthUrl, spotifyStatus} from '../services/spotify-user.js';
 import {listGuildExtras} from '../utils/guild-extras.js';
 import {PANEL_HTML} from './page.js';
+import {invitePage} from './invite-page.js';
+import {BOT_INVITE_PERMISSIONS} from '../utils/constants.js';
 
 /*
  * Web-Panel für den Bot-Besitzer (Lizenzen, Schlüssel, Blacklist, Server,
@@ -439,6 +441,27 @@ export const startPanel = (client: Client): void => {
 
       if (request.method === 'GET' && url.pathname === '/') {
         send(response, 200, PANEL_HTML.replace('__STATE__', current ? 'app' : 'login').replace('__DISCORD__', discordSecret() ? '1' : ''));
+        return;
+      }
+
+      // Öffentliche Einladungsseite (Installations-Link im Developer-Portal).
+      if (request.method === 'GET' && (url.pathname === '/invite' || url.pathname === '/invite/')) {
+        const inviteUrl = `https://discord.com/oauth2/authorize?${new URLSearchParams({
+          client_id: client.user?.id ?? '',
+          scope: 'bot applications.commands',
+          permissions: BOT_INVITE_PERMISSIONS,
+          ...(url.searchParams.get('guild_id')?.match(/^\d{17,20}$/) ? {guild_id: url.searchParams.get('guild_id')!} : {}),
+        }).toString()}`;
+        if (url.searchParams.has('direct')) {
+          redirect(response, inviteUrl);
+          return;
+        }
+
+        send(response, 200, invitePage({
+          botName: client.user?.username ?? 'ByteMusic',
+          avatar: client.user?.displayAvatarURL({size: 256}) ?? null,
+          inviteUrl,
+        }));
         return;
       }
 
